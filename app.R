@@ -2,122 +2,10 @@
 library(shiny)
 library(plotly)
 library(magrittr)
-library(GENESIS)
-library(SNPRelate)
-library(lme4)
-library(GWASTools)
-library(GWASdata)
-library(qqman)
+
 
 # Allow file imports up to 1GB in size
-
 options(shiny.maxRequestSize = 1000*1024^2)
-
-
-########################################################
-## Read in and save phenotype and covariate data into ##
-## a ScanAnnotationDataFrame object                   ##
-########################################################
-
-scanObj <- function(data, id, pheno, gender, covars){
-    
-    dat <- data.frame(scanID = data[,id],
-                      phenotype = data[,pheno],
-                      sex = data[,gender],
-                      data[,covars])
-    
-    scanAnnot <- ScanAnnotationDataFrame(dat)
-    scanAnnot$sex <- as.factor(scanAnnot$sex)
-    scanAnnot %>% return
-}
-
-########################################################
-## Read in and save genotype data into a              ##
-## GenotypeData object                                ##
-########################################################
-
-genObj <- function(type, path, scan) {
-    if (type == "gds") {
-        NULL
-        
-    } else if (type == "PLINK") {
-        bed <- INPUT
-        bim <- INPUT
-        fam <- INPUT
-        
-        snpgdsBED2GDS(bed.fn = bed,
-                      bim.fn = bim,
-                      fam.fn = fam,
-                      out.gdsfn = path)
-        
-    } else if (type == "txt") {
-        NULL
-    }
-    
-    geno <- GdsGenotypeReader(filename = path)
-    genoData <- GenotypeData(geno, scanAnnot = scan)
-}
-
-########################################################
-## Perform association test by Linear Mixed Model     ##
-########################################################
-
-gwasMixed <- function(genoData, covars) {
-    
-    # Include all covariates, remove the scanID and outcome var's
-    # PROBS BETTER TO HAVE A SELECTION TO SELECT/DESELECT COVARs
-    # covars <- (genoData %>% getScanAnnotation %>% getVariableNames)[-c(1,2)]
-    
-    null.model <- genoData %>% getScanAnnotation %>% 
-        fitNullModel(outcome = "phenotype",
-                     covars = covars,
-                     family = gaussian)
-    
-    iter <- GenotypeBlockIterator(genoData = genoData,
-                                  snpBlock = 10000)
-    
-    assoc <- assocTestSingle(iter, 
-                             null.model = null.model)
-    
-    # Only returning some of the results from the null model
-    list("Null Model" = null.model[c(1,3,5)], 
-         "Association" = assoc) %>% return
-}
-
-########################################################
-## Perform association test by Linear or Logistic     ##
-## Regression                                         ##
-########################################################
-
-gwasLogLin <- function(genoData, model.type, covars) {
-    # model.type = "linear" or "logistic"
-    
-    # Include all covariates, remove the scanID and outcome var's
-    # covars <- (genoData %>% getScanAnnotation %>% getVariableNames)[-c(1,2)]
-    
-    
-    chr <- genoData %>% getChromosome
-    
-    assoc.list <- unique(chr) %>% lapply(function(x) {
-        ## Y chromosome only includes males, cannot have sex as covariate
-        ## copied from GWASTools vignette
-        ## NEED TO IMPROVE THIS, MAY NOT HAVE SEX AS COVAR IN FIRST PLACE
-        covar <- ifelse(x == 25, yes = covars[-1], no = covars)
-        start <- which(chr == x)[1]
-        end <- start + (which(chr == x) %>% length) -1
-        
-        assocRegression(genoData = genoData,
-                        outcome = "phenotype",
-                        model.type = model.type,
-                        covar = covar,
-                        snpStart = start,
-                        snpEnd = end)
-        
-    })
-    
-    assoc <- do.call(rbind, assoc.list)
-    assoc %>% return
-}
 
 ########################################################
 ########################################################
@@ -129,189 +17,241 @@ ui = fluidPage(
     tabsetPanel(
         
         # Tab 1 ----
-        tabPanel(title = "Import Data", fluid = TRUE,
+        tabPanel(title = "Phenotype & Covariate Data", fluid = TRUE,
                  
                  # Title ----
-                 titlePanel("Input Data"),
+                 titlePanel("Upload Phenotype & Covariate Data"),
                  
                  # Row 1 ----
                  fluidRow(
-                     
-                     # R1, Col 1 ----
-                     column(8,
+                     column(4,
                             
-                            column(6,
+                            # Horizontal line ----
+                            tags$hr(),
                             
-                                # Sub-heading ----
-                                h3("Phenotype and Covariate Data:"),
-                                
-                                # Horizontal line ----
-                                tags$hr(),
-                                
-                                # Input: Select phenotype data file ----
-                                fileInput(inputId = "phenoFile", 
-                                          label = "Select file(s)",
-                                          multiple = TRUE,
-                                          accept = c(".csv"),
-                                          placeholder = ".csv"),
-                                
-                                column(4,
-                                
-                                    # Input: Select the id column ----
-                                    selectInput(inputId = "idIdx",
-                                                label = "ID",
-                                                character(0),
-                                                selectize = FALSE)
-                                ),
-                                
-                                column(4,
-                                
-                                    # Input: Select the phenotype column ----
-                                    selectInput(inputId = "phenoIdx",
-                                                label = "Phenotype",
-                                                character(0),
-                                                selectize = FALSE)
-                                ),
-                                
-                                column(4,
-                                
-                                    # Input: Select the sex column ----
-                                    selectInput(inputId = "sexIdx",
-                                                label = "Sex",
-                                                character(0),
-                                                selectize = FALSE)
-                                ),
-                        
+                            # Input: Select phenotype data file ----
+                            fileInput(inputId = "phenoFile", 
+                                      label = "Select .CSV file",
+                                      multiple = TRUE,
+                                      accept = c(".csv")),
+                            
+                            # Input: Select the id column ----
+                            selectInput(inputId = "id",
+                                        label = "ID",
+                                        character(0),
+                                        selectize = FALSE),
+                            
+                            # Input: Select the phenotype column ----
+                            selectInput(inputId = "pheno",
+                                        label = "Phenotype",
+                                        character(0),
+                                        selectize = FALSE),
+                            
+                            # Input: Select the sex column ----
+                            selectInput(inputId = "sex",
+                                        label = "Sex",
+                                        character(0),
+                                        selectize = FALSE),
+                            
                             # Input: Select additional covariates ----
-                            selectInput(inputId = "covarsIdx",
+                            selectInput(inputId = "covars",
                                         label = "Other covariates",
                                         character(0),
                                         selectize = FALSE,
                                         multiple = TRUE),
                             
-                            # Action: save data to ScanAnnotationDataFrame object
-                           # actionButton()
+                            # Input: Submit button to create scanObj
+                            actionButton(inputId = "phenoDo",
+                                         label = "Submit"),
                             
                             ),
-                           
-                           column(6,
-                                  
-                                  # Sub-heading ----
-                                  h3("Additional Covariate Data:"),
-                                  
-                                  # Horizontal line ----
-                                  tags$hr(),
-                                  
-                                  # Input: Select phenotype data file ----
-                                  fileInput(inputId = "covarFile", 
-                                            label = "Select file(s)",
-                                            multiple = TRUE,
-                                            accept = c(".csv"),
-                                            placeholder = ".csv"),
-                                  
-                                  
-                                  )
-                           
-                           ),
                      
-                     
-                     # R1, Col 2 ----
-                     column(4,
-                             
-                             # Sub-heading ----
-                             h3("Genome Data"),
-                             
-                             # Horizontal line ----
-                             tags$hr(),
-                             
-                             # Input: Select genome file type ----
-                             radioButtons(inputId = "genomeType",
-                                          "Select file type(s)",
-                                          choices = c(GDS = "gds",
-                                                      CSV = "csv",
-                                                      "BED, BIM, FAM" = "PLINK"),
-                                          selected = "gds"),
-                             
-                             # Input: Select genome/SNP data file ----
-                             fileInput(inputId = "genomeFile", 
-                                       label = "Select file(s)",
-                                       multiple = TRUE,
-                                       accept = c(".csv",
-                                                  ".bed",
-                                                  ".bim",
-                                                  ".fam",
-                                                  ".gds")),
-                             
-                             # Input: Is genome data imputed? ----
-                             checkboxInput(inputId = "isImpute", 
-                                           label = "Check box if data has been imputed", 
-                                           value = FALSE)
-                            ),
-                     ),
-                 
-                 
-                 # Row 2 ----
-                 fluidRow(
-                     
-                     # R2, Col 1 ----
-                     column(12,
+                     column(8,
                             
-                            # Output text ----
-                            textOutput("selected"))
-                     ),
-                 ),
+                            # Output: show summary table for phenotype data
+                            tableOutput(outputId = "phenoSummary")
+                            
+                            )
+                     )
+        ),
         
         
         # Tab 2 ----
-        tabPanel("Plot", fluid = TRUE)
-        
+        tabPanel("Genome Data", fluid = TRUE,
+                 
+                 # Title ----
+                 titlePanel("Upload Genome Data"),
+                 
+                 # Row 1 ----
+                 fluidRow(
+                     column(4,
+                            
+                            # Horizontal line ----
+                            tags$hr(),
+                            
+                            # Input: Select file type(s) for upload
+                            radioButtons(inputId = "fileType",
+                                         label = "Select file format(s)",
+                                         choices = c("GDS" = "gds",
+                                                     "PLINK" = "plink"),
+                                         selected = "gds"),
+                            
+                            
+                            conditionalPanel(
+                                condition = "input.fileType == 'gds'",
+                                
+                                # Input: Select genome/SNP data file ----
+                                fileInput(inputId = "gdsFile", 
+                                          label = "Select GDS file",
+                                          multiple = FALSE,
+                                          accept = c(".gds"))
+                            ),
+                            
+                            conditionalPanel(
+                                condition = "input.fileType == 'plink'",
+                                
+                                # Input: Select genome/SNP data file ----
+                                fileInput(inputId = "bedFile", 
+                                          label = "Select PLINK .BED file",
+                                          multiple = FALSE,
+                                          accept = c(".bed")),
+                                
+                                # Input: Select genome/SNP data file ----
+                                fileInput(inputId = "bimFile", 
+                                          label = "Select PLINK .BIM file",
+                                          multiple = FALSE,
+                                          accept = c(".bim")),
+                                
+                                # Input: Select genome/SNP data file ----
+                                fileInput(inputId = "famFile", 
+                                          label = "Select PLINK .FAM file",
+                                          multiple = FALSE,
+                                          accept = c(".fam")),
+                                
+                            ),
+                            
+                            
+                            # Input: Is genome data imputed? ----
+                            checkboxInput(inputId = "isImpute", 
+                                          label = "Check box if data has been imputed", 
+                                          value = FALSE),
+                            
+                            # Input: Submit button to create genObj
+                            actionButton(inputId = "genoDo",
+                                         label = "Submit"),
+                            
+                            ),
+                     
+                     column(8,
+                            
+                            # Output: show summary table for genome data
+                            tableOutput(outputId = "genoSummary")
+                            
+                            )
+                 )
         )
     )
-
-
+)
 
 
 
 server <- function(input, output, session) {
     
+    source("./shinyGWAS_fns.R")
+    
     ##############################
     ## PHENOTYPE/COVARIATE DATA ##
     ##############################
     
+    # Save csv data object
     data <- reactive({
+        req(input$phenoFile)
         inPheno <- input$phenoFile
-        if (is.null(inPheno)) return(NULL)
         read.csv(inPheno$datapath)
     })
     
+    # Request ID variable
     observeEvent(data(), {
-        updateSelectInput(session = session, inputId = "idIdx", 
-                          choices = names(data()))
+        updateSelectInput(session = session, inputId = "id", 
+                          choices = c(" " = "", names(data())))
     })
     
+    # Request phenotype variable
     observeEvent(data(), {
-        updateSelectInput(session = session, inputId = "phenoIdx", 
-                          choices = names(data()))
+        updateSelectInput(session = session, inputId = "pheno", 
+                          choices = c(" " = "", names(data())))
     })
     
+    # Request sex variable
     observeEvent(data(), {
-        updateSelectInput(session = session, inputId = "sexIdx", 
-                          choices = c("N/A" = "", names(data())))
+        updateSelectInput(session = session, inputId = "sex", 
+                          choices = c(" " = "", names(data())))
     })
     
+    # Request additional covariates
     observeEvent(data(), {
-        updateSelectInput(session = session, inputId = "covarsIdx", 
-                          choices = c("N/A" = "", names(data())))
+        updateSelectInput(session = session, inputId = "covars", 
+                          choices = c(" " = "", names(data())), 
+                          selected = "")
     })
     
     
-    
-    
-    output$selected <- renderText({
-        req(data())
-        paste0("You've selected ", input$idIdx,
-               " as the ID column.")
+    # Save data to ScanAnnotationDataFrame object 
+    scanAnnot <- eventReactive(input$phenoDo, {
+        # Check required inputs
+        req(input$phenoFile)
+        validate(
+            need(input$id != "", "Select ID variable"),
+            need(input$pheno != "", "Select phenotype variable"),
+            need(input$sex != "", "Select sex variable"))
+        
+        scan <- scanObj(data = data(),
+                        id = input$id,
+                        pheno = input$pheno,
+                        sex = input$sex,
+                        covars = input$covars)
     })
+    
+    # Output pheno data summary
+    output$phenoSummary <- renderTable({
+        pData(scanAnnot()) %>% head
+    })
+ 
+    
+    #################
+    ## GENOME DATA ##
+    #################
+    
+    gdsPath <- reactive({
+        req(input$gdsFile)
+        input$gdsFile$datapath %>% return
+    })
+    
+    plinkPath <- reactive({
+        req(input$bedFile)
+        req(input$bimFile)
+        req(input$famFile)
+        path <- list("bed" = input$bedFile$datapath,
+                     "bim" = input$bimFile$datapath,
+                     "fam" = input$famFile$datapath)
+        plinkToGds(path) %>% return
+    })
+
+    # Output genome data summary
+    output$genoSummary <- renderTable({
+        
+        if (input$fileType == "gds"){
+            gData <- openGDS(gdsPath)
+        } else if (input$fileType == "plink"){
+            gData <- openGDS(plinkPath)
+        }
+        
+        data.frame(snpID = getSnpID(gData),
+                   chromosome = getChromosome(gData),
+                   position = getPosition(gData))
+    })
+    
+    
     
 }
 
