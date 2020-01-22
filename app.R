@@ -2,31 +2,27 @@
 library(shiny)
 library(plotly)
 library(magrittr)
+library(shinybusy)
+
 
 
 # Allow file imports up to 1GB in size
 options(shiny.maxRequestSize = 1000*1024^2)
 
-########################################################
-########################################################
-########################################################
-
 ui = fluidPage(
-    
-    # Multi-tab layout ----
     tabsetPanel(
         
-        # Tab 1 ----
+        ################################################
+        ## Tab 1 Uploading Phenotype & Covariate data ##
+        ################################################
+        
         tabPanel(title = "Phenotype & Covariate Data", fluid = TRUE,
                  
                  # Title ----
                  titlePanel("Upload Phenotype & Covariate Data"),
                  
-                 # Row 1 ----
                  fluidRow(
                      column(4,
-                            
-                            # Horizontal line ----
                             tags$hr(),
                             
                             # Input: Select phenotype data file ----
@@ -34,6 +30,8 @@ ui = fluidPage(
                                       label = "Select .CSV file",
                                       multiple = TRUE,
                                       accept = c(".csv")),
+                            
+                            tags$hr(),
                             
                             # Input: Select the id column ----
                             selectInput(inputId = "id",
@@ -60,43 +58,44 @@ ui = fluidPage(
                                         selectize = FALSE,
                                         multiple = TRUE),
                             
-                            # Input: Submit button to create scanObj
+                            # Input: Submit button to create scanObj ----
                             actionButton(inputId = "phenoDo",
-                                         label = "Submit"),
+                                         label = "Submit")
                             
                             ),
                      
                      column(8,
                             
-                            # Output: show summary table for phenotype data
+                            # Output: show summary table for phenotype data ----
                             tableOutput(outputId = "phenoSummary")
                             
                             )
                      )
         ),
         
+        ################################################
+        ## Tab 2 Uploading Genome data                ##
+        ################################################
         
-        # Tab 2 ----
         tabPanel("Genome Data", fluid = TRUE,
                  
                  # Title ----
                  titlePanel("Upload Genome Data"),
                  
-                 # Row 1 ----
                  fluidRow(
                      column(4,
-                            
-                            # Horizontal line ----
                             tags$hr(),
                             
-                            # Input: Select file type(s) for upload
+                            # Input: Select file format(s) for upload ----
                             radioButtons(inputId = "fileType",
                                          label = "Select file format(s)",
                                          choices = c("GDS" = "gds",
                                                      "PLINK" = "plink"),
                                          selected = "gds"),
                             
+                            tags$hr(),
                             
+                            # Show if file format is GDS ----
                             conditionalPanel(
                                 condition = "input.fileType == 'gds'",
                                 
@@ -107,6 +106,7 @@ ui = fluidPage(
                                           accept = c(".gds"))
                             ),
                             
+                            # Show if file format is PLINK ----
                             conditionalPanel(
                                 condition = "input.fileType == 'plink'",
                                 
@@ -126,7 +126,7 @@ ui = fluidPage(
                                 fileInput(inputId = "famFile", 
                                           label = "Select PLINK .FAM file",
                                           multiple = FALSE,
-                                          accept = c(".fam")),
+                                          accept = c(".fam"))
                                 
                             ),
                             
@@ -136,16 +136,19 @@ ui = fluidPage(
                                           label = "Check box if data has been imputed", 
                                           value = FALSE),
                             
-                            # Input: Submit button to create genObj
+                            # Input: Submit button to create genObj ----
                             actionButton(inputId = "genoDo",
-                                         label = "Submit"),
+                                         label = "Submit")
                             
                             ),
                      
                      column(8,
                             
-                            # Output: show summary table for genome data
-                            tableOutput(outputId = "genoSummary")
+                            # Output: A busy status indicator
+                            add_busy_spinner(spin = "fading-circle"),
+                            
+                            # Output: show summary table for genome data ----
+                            tableOutput(outputId = "chromTable")
                             
                             )
                  )
@@ -159,53 +162,54 @@ server <- function(input, output, session) {
     
     source("./shinyGWAS_fns.R")
     
-    ##############################
-    ## PHENOTYPE/COVARIATE DATA ##
-    ##############################
+    ################################################
+    ## Tab 1 Uploading Phenotype & Covariate data ##
+    ################################################
     
-    # Save csv data object
-    data <- reactive({
+    # Read csv data object
+    sData <- reactive({
         req(input$phenoFile)
         inPheno <- input$phenoFile
         read.csv(inPheno$datapath)
     })
     
     # Request ID variable
-    observeEvent(data(), {
+    observeEvent(sData(), {
         updateSelectInput(session = session, inputId = "id", 
-                          choices = c(" " = "", names(data())))
+                          choices = c(" " = "", names(sData())))
     })
     
     # Request phenotype variable
-    observeEvent(data(), {
+    observeEvent(sData(), {
         updateSelectInput(session = session, inputId = "pheno", 
-                          choices = c(" " = "", names(data())))
+                          choices = c(" " = "", names(sData())))
     })
     
     # Request sex variable
-    observeEvent(data(), {
+    observeEvent(sData(), {
         updateSelectInput(session = session, inputId = "sex", 
-                          choices = c(" " = "", names(data())))
+                          choices = c(" " = "", names(sData())))
     })
     
     # Request additional covariates
-    observeEvent(data(), {
+    observeEvent(sData(), {
         updateSelectInput(session = session, inputId = "covars", 
-                          choices = c(" " = "", names(data())), 
+                          choices = c(" " = "", names(sData())), 
                           selected = "")
     })
     
     
-    # Save data to ScanAnnotationDataFrame object 
+    # Save data to ScanAnnotationDataFrame object on "Submit"
     scanAnnot <- eventReactive(input$phenoDo, {
         # Check required inputs
         req(input$phenoFile)
         validate(
-            need(input$id != "", "Select ID variable"),
-            need(input$pheno != "", "Select phenotype variable"),
-            need(input$sex != "", "Select sex variable"))
+            need(input$id != "", "Select ID variable."),
+            need(input$pheno != "", "Select phenotype variable."),
+            need(input$sex != "", "Select sex variable.")
+            )
         
-        scan <- scanObj(data = data(),
+        scan <- scanObj(data = sData(),
                         id = input$id,
                         pheno = input$pheno,
                         sex = input$sex,
@@ -218,42 +222,48 @@ server <- function(input, output, session) {
     })
  
     
-    #################
-    ## GENOME DATA ##
-    #################
+    ################################################
+    ## Tab 2 Uploading Genome data                ##
+    ################################################
     
-    gdsPath <- reactive({
-        req(input$gdsFile)
-        input$gdsFile$datapath %>% return
-    })
-    
-    plinkPath <- reactive({
-        req(input$bedFile)
-        req(input$bimFile)
-        req(input$famFile)
-        path <- list("bed" = input$bedFile$datapath,
-                     "bim" = input$bimFile$datapath,
-                     "fam" = input$famFile$datapath)
-        plinkToGds(path) %>% return
-    })
-
-    # Output genome data summary
-    output$genoSummary <- renderTable({
+    # Save file path for gds file
+    gData <- eventReactive(input$genoDo, {
+        req(input$fileType)
+        
+        # Close files so instruction can be re-executed
+        showfile.gds(closeall = TRUE)
+        
         
         if (input$fileType == "gds"){
-            gData <- openGDS(gdsPath)
+            req(input$gdsFile)
+            path <- input$gdsFile$datapath %>% 
+                as.character
+            
         } else if (input$fileType == "plink"){
-            gData <- openGDS(plinkPath)
+            req(input$bedFile)
+            req(input$bimFile)
+            req(input$famFile)
+            paths <- list("bed" = input$bedFile$datapath,
+                         "bim" = input$bimFile$datapath,
+                         "fam" = input$famFile$datapath)
+            path <- plinkToGds(paths)
         }
         
-        data.frame(snpID = getSnpID(gData),
-                   chromosome = getChromosome(gData),
-                   position = getPosition(gData))
+        validate(
+            need(isS4(scanAnnot) == TRUE, "Upload phenotype data."))
+        openGDS(path, scanAnnot)
     })
     
-    
-    
+    # Output: excerpt of table to show reading in correcctly.
+    output$chromTable <- renderTable({
+        data.frame(chr = getChromosome(gData())[1:10],
+                   id = getSnpID(gData())[1:10],
+                   pos = getPosition(gData())[1:10])
+    })
+
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
+
+

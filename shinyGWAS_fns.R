@@ -7,8 +7,8 @@ library(GWASdata)
 library(qqman)
 
 ########################################################
-## Read in and save phenotype and covariate data into ##
-## a ScanAnnotationDataFrame object                   ##
+## Read in and save phenotype and covariate data from ##
+## a .CSV file into a ScanAnnotationDataFrame object  ##
 ########################################################
 
 scanObj <- function(data, id, pheno, sex, covars){
@@ -31,40 +31,14 @@ scanObj <- function(data, id, pheno, sex, covars){
 
 
 ########################################################
-## Find file type of input files                      ##
-########################################################
-
-last4Char <- function(string){
-  len <- nchar(string)
-  substr(string, len-3, len) %>% return
-}
-
-
-########################################################
 ## Open GDS files                                     ##
 ########################################################
 
-openGDS <- function(path){
+openGDS <- function(path, scan = NULL){
   
-  geno <- GdsGenotypeReader(filename = outPath)
+  geno <- GdsGenotypeReader(filename = path)
   genoData <- GenotypeData(geno, scanAnnot = scan)
   
-  return(genoData)
-}
-
-
-########################################################
-## Close GDS files (and temp if required)             ##
-########################################################
-
-closeGDS <- function(genoData, temp = NULL){
-  
-  if (temp) {
-    close(genoData)
-    unlink(temp)
-  } else {
-    close(genoData)
-  }
 }
 
 
@@ -76,9 +50,9 @@ plinkToGds <- function(inPath) {
   
   outFile <- tempfile("shinyGWAS", fileext = ".gds")
   
-  bed <- inPath[1]
-  bim <- inPath[2]
-  fam <- inPath[3]
+  bed <- inPath[1] %>% as.character
+  bim <- inPath[2] %>% as.character
+  fam <- inPath[3] %>% as.character
   
   snpgdsBED2GDS(bed.fn = bed,
                 bim.fn = bim,
@@ -88,35 +62,6 @@ plinkToGds <- function(inPath) {
   return(outFile)
 }
 
-
-
-
-########################################################
-## Read in and save genotype data into a              ##
-## GenotypeData object                                ##
-########################################################
-
-genObj <- function(type, path, scan) {
-  if (type == "gds") {
-    NULL
-    
-  } else if (type == "PLINK") {
-    bed <- path[1]
-    bim <- path[2]
-    fam <- path[3]
-    
-    snpgdsBED2GDS(bed.fn = bed,
-                  bim.fn = bim,
-                  fam.fn = fam,
-                  out.gdsfn = path)
-    
-  } else if (type == "txt") {
-    NULL
-  }
-  
-  geno <- GdsGenotypeReader(filename = path)
-  genoData <- GenotypeData(geno, scanAnnot = scan)
-}
 
 ########################################################
 ## Perform association test by Linear Mixed Model     ##
