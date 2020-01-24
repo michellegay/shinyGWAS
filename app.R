@@ -216,6 +216,10 @@ ui = fluidPage(
                             tags$hr(),
                             tags$hr(),
                             
+                            # Input: Submit button to run null model ----
+                            actionButton(inputId = "nullDo",
+                                         label = "Run Null Model"),
+                            
                             # Input: Submit button to run association analysis ----
                             actionButton(inputId = "assocDo",
                                          label = "Run Association")
@@ -226,6 +230,9 @@ ui = fluidPage(
                             
                             # Output: A busy status indicator
                             add_busy_spinner(spin = "fading-circle"),
+                            
+                            # Output: show summary table for phenotype data ----
+                            tableOutput(outputId = "nullSummary"),
                             
                             # Output: show summary table for phenotype data ----
                             tableOutput(outputId = "gwasSummary")
@@ -348,8 +355,7 @@ server <- function(input, output, session) {
         
         if (input$phenoDatType == "bin"){
             choices <- c("Logistic Regression" = "logistic", 
-                         "Logistic Mixed Model" = "logMM",
-                         "Linear Mixed Model" = "linMM")
+                         "Logistic Mixed Model" = "logMM")
             selected <- "logistic"
             
         } else if (input$phenoDatType == "ord"){
@@ -374,6 +380,12 @@ server <- function(input, output, session) {
                            selected = selected)
     })
     
+    # Run null model for all models
+    assocNull <- eventReactive(input$nullDo, {
+        req(gData())
+        gwasNull(gData(), input$phenoDatType)
+    })
+    
     # Save genome data to GenotypeData object on "Submit"
     assocData <- eventReactive(input$assocDo, {
         req(gData())
@@ -382,12 +394,21 @@ server <- function(input, output, session) {
             gwasLogLin(gData(), input$assocTest)
 
         } else if (input$assocTest == "linMM" | input$assocTest == "logMM"){
-            gwasMixed(gData())
+            req(assocNull())
+            gwasMixed(gData(), assocNull())
 
         } else {
             NULL
         }
     })
+    
+    # Output null model summary
+    output$nullSummary <- renderTable({
+        req(assocNull())
+        
+        assocNull()$fixef}, 
+        rownames = TRUE
+        )
     
     # Output pheno data summary
     output$gwasSummary <- renderTable({

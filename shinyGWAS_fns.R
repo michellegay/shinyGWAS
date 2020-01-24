@@ -1,3 +1,4 @@
+
 library(magrittr)
 library(GENESIS)
 library(SNPRelate)
@@ -63,14 +64,35 @@ plinkToGds <- function(inPath) {
 ## Perform association test by Linear Mixed Model     ##
 ########################################################
 
-gwasMixed <- function(genoData) {
+gwasNull <- function(genoData, fam){
   
   covars <- (genoData %>% getScanAnnotation %>% getVariableNames)[-c(1,2)]
   
-  null.model <- genoData %>% getScanAnnotation %>% 
-    fitNullModel(outcome = "phenotype",
-                 covars = covars,
-                 family = gaussian)
+  gaus <- c("ord", "cont")
+  
+  if (fam %in% gaus){
+    null.model <- genoData %>% getScanAnnotation %>% 
+      fitNullModel(outcome = "phenotype",
+                   covars = covars,
+                   family = gaussian)
+    
+  } else if (fam == "bin"){
+    null.model <- genoData %>% getScanAnnotation %>% 
+      fitNullModel(outcome = "phenotype",
+                   covars = covars,
+                   family = binomial)
+  } else {
+    null.model <- NULL
+  }
+  
+  null.model %>% return
+}
+
+########################################################
+## Perform association test by Linear Mixed Model     ##
+########################################################
+
+gwasMixed <- function(genoData, null.model) {
   
   iter <- GenotypeBlockIterator(genoData = genoData,
                                 snpBlock = 10000)
@@ -79,8 +101,7 @@ gwasMixed <- function(genoData) {
                            null.model = null.model)
   
   # Only returning some of the results from the null model
-  list("Null Model" = null.model[c(1,3,5)], 
-       "Association" = assoc) %>% return
+  assoc %>% return
 }
 
 ########################################################
@@ -98,8 +119,12 @@ gwasLogLin <- function(genoData, model.type) {
   assoc.list <- unique(chr) %>% lapply(function(x) {
     ## copied from GWASTools vignette
     ## Y chromosome only includes males, cannot have sex as covariate
-    ## !!! NEED TO IMPROVE THIS, MAY NOT HAVE SEX AS COVAR IN FIRST PLACE
-    covar <- ifelse(x == 25, yes = covars[-1], no = covars)
+    covar <- ifelse(x == 25, yes = c(""), no = covars)
+    
+    if (covar == ""){
+      covar <- NULL
+    }
+    
     start <- which(chr == x)[1]
     end <- start + (which(chr == x) %>% length) -1
     
@@ -114,3 +139,6 @@ gwasLogLin <- function(genoData, model.type) {
   assoc <- do.call(rbind, assoc.list)
   assoc %>% return
 }
+
+
+
