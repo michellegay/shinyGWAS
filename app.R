@@ -4,8 +4,6 @@ library(plotly)
 library(magrittr)
 library(shinybusy)
 
-
-
 # Allow file imports up to 1GB in size
 options(shiny.maxRequestSize = 1000*1024^2)
 
@@ -36,42 +34,47 @@ ui = fluidPage(
                             # Input: Select the id column ----
                             selectInput(inputId = "id",
                                         label = "ID",
-                                        character(0),
+                                        choices = character(0),
                                         selectize = FALSE),
                             
                             # Input: Select the phenotype column ----
                             selectInput(inputId = "pheno",
                                         label = "Phenotype",
-                                        character(0),
+                                        choices = character(0),
                                         selectize = FALSE),
                             
                             # Input: Select the sex column ----
                             selectInput(inputId = "sex",
                                         label = "Sex",
-                                        character(0),
+                                        choices = character(0),
                                         selectize = FALSE),
                             
                             # Input: Select additional covariates ----
                             selectInput(inputId = "covars",
                                         label = "Other covariates",
-                                        character(0),
+                                        choices = character(0),
                                         selectize = FALSE,
                                         multiple = TRUE),
+                            
+                            tags$hr(),
                             
                             # Input: Submit button to create scanObj ----
                             actionButton(inputId = "phenoDo",
                                          label = "Submit")
                             
-                            ),
+                            ), #END column
                      
                      column(8,
+                            
+                            # Output: A busy status indicator
+                            add_busy_spinner(spin = "fading-circle"),
                             
                             # Output: show summary table for phenotype data ----
                             tableOutput(outputId = "phenoSummary")
                             
-                            )
-                     )
-        ),
+                            ) #END column
+                     ) #END row
+        ), #END tab
         
         ################################################
         ## Tab 2 Uploading Genome data                ##
@@ -104,7 +107,7 @@ ui = fluidPage(
                                           label = "Select GDS file",
                                           multiple = FALSE,
                                           accept = c(".gds"))
-                            ),
+                            ), #END panel
                             
                             # Show if file format is PLINK ----
                             conditionalPanel(
@@ -128,19 +131,15 @@ ui = fluidPage(
                                           multiple = FALSE,
                                           accept = c(".fam"))
                                 
-                            ),
+                            ), #END panel
                             
-                            
-                            # Input: Is genome data imputed? ----
-                            checkboxInput(inputId = "isImpute", 
-                                          label = "Check box if data has been imputed", 
-                                          value = FALSE),
+                            tags$hr(),
                             
                             # Input: Submit button to create genObj ----
                             actionButton(inputId = "genoDo",
                                          label = "Submit")
                             
-                            ),
+                            ), #END column
                      
                      column(8,
                             
@@ -150,11 +149,92 @@ ui = fluidPage(
                             # Output: show summary table for genome data ----
                             tableOutput(outputId = "chromTable")
                             
-                            )
-                 )
-        )
-    )
-)
+                            ) #END column
+                 ) #END row
+        ), #END tab
+        
+        ################################################
+        ## Tab 3 Configure Association Test           ##
+        ################################################
+        
+        tabPanel("Association", fluid = TRUE,
+                 
+                 # Title ----
+                 titlePanel("Configure Settings for Association Testing"),
+                 
+                 fluidRow(
+                     column(4,
+                            tags$hr(),
+                            
+                            # Input: Is genome data imputed? ----
+                            checkboxInput(inputId = "isImpute", 
+                                          label = "Check box if data has been imputed", 
+                                          value = FALSE),
+                            
+                            tags$hr(),
+                            
+                            # Input: Select datatype of Phenotype ----
+                            radioButtons(inputId = "phenoDatType",
+                                         label = "Select phenotype data-type",
+                                         choices = c("Binary" = "bin",
+                                                     "Ordinal" = "ord",
+                                                     "Continuous" = "cont",
+                                                     "Categorical/Nominal" = "cat"),
+                                         selected = "bin"),
+                            
+                            tags$hr(),
+                            
+                            # INPUT: Select association model ----
+                            radioButtons(inputId = "assocTest",
+                                         label = "Select association model",
+                                         choices = c("Logistic Regression" = "logistic", 
+                                                     "Logistic Mixed Model" = "logMM",
+                                                     "Linear Regression" = "linear",
+                                                     "Linear Mixed Model" = "linMM",
+                                                     "Ordinal Logit" = "ordLog",
+                                                     "(-_-)_/¯" = "idk")),
+                            
+                            tags$hr(),
+                            tags$hr(),
+                            tags$hr(),
+                            
+                            # Additional inputs/parameter config for linear/logistic mixed models ----
+                            conditionalPanel(
+                                condition = "input.assocTest == 'linMM' || input.assocTest == 'logMM'",
+                                
+                                # Input: Select random effects (e.g. kinship matrix) ----
+                                fileInput(inputId = "randEffect", 
+                                          label = "Select random effects file",
+                                          multiple = FALSE,
+                                          accept = c(".csv")) #Not sure what to accept here
+                                
+                            ), #END panel
+                            
+                            h4("Additional model-specific inputs/parameter configs go here"),
+                            
+                            tags$hr(),
+                            tags$hr(),
+                            tags$hr(),
+                            
+                            # Input: Submit button to run association analysis ----
+                            actionButton(inputId = "assocDo",
+                                         label = "Run Association")
+                            
+                            ), #END column
+                     
+                     column(8,
+                            
+                            # Output: A busy status indicator
+                            add_busy_spinner(spin = "fading-circle"),
+                            
+                            # Output: show summary table for phenotype data ----
+                            tableOutput(outputId = "gwasSummary")
+                            
+                     ) #END column
+                 ) #END row
+        )#END tab
+     ) #END tabset
+) #END ui
 
 
 
@@ -163,7 +243,7 @@ server <- function(input, output, session) {
     source("./shinyGWAS_fns.R")
     
     ################################################
-    ## Tab 1 Uploading Phenotype & Covariate data ##
+    ## Tab 1 Uploading Phenotype & Covariate Data ##
     ################################################
     
     # Read csv data object
@@ -198,10 +278,8 @@ server <- function(input, output, session) {
                           selected = "")
     })
     
-    
     # Save data to ScanAnnotationDataFrame object on "Submit"
     scanAnnot <- eventReactive(input$phenoDo, {
-        # Check required inputs
         req(input$phenoFile)
         validate(
             need(input$id != "", "Select ID variable."),
@@ -221,12 +299,11 @@ server <- function(input, output, session) {
         pData(scanAnnot()) %>% head
     })
  
-    
     ################################################
-    ## Tab 2 Uploading Genome data                ##
+    ## Tab 2 Uploading Genome Data                ##
     ################################################
     
-    # Save file path for gds file
+    # Save genome data to GenotypeData object on "Submit"
     gData <- eventReactive(input$genoDo, {
         req(input$fileType)
         
@@ -249,9 +326,9 @@ server <- function(input, output, session) {
             path <- plinkToGds(paths)
         }
         
-        validate(
-            need(isS4(scanAnnot) == TRUE, "Upload phenotype data."))
-        openGDS(path, scanAnnot)
+        # validate(
+        #     need(isS4(scanAnnot) == TRUE, "Upload phenotype data."))
+        openGDS(path, scanAnnot())
     })
     
     # Output: excerpt of table to show reading in correcctly.
@@ -260,8 +337,64 @@ server <- function(input, output, session) {
                    id = getSnpID(gData())[1:10],
                    pos = getPosition(gData())[1:10])
     })
+    
+    ################################################
+    ## Tab 3 Configuring Association Test Settigs ##
+    ################################################
+    
+    # Update association test options based on data type selection
+    observeEvent(input$phenoDatType, {
+        req(input$phenoDatType)
+        
+        if (input$phenoDatType == "bin"){
+            choices <- c("Logistic Regression" = "logistic", 
+                         "Logistic Mixed Model" = "logMM",
+                         "Linear Mixed Model" = "linMM")
+            selected <- "logistic"
+            
+        } else if (input$phenoDatType == "ord"){
+            choices <- c("Linear Regression" = "linear",
+                         "Linear Mixed Model" = "linMM",
+                         "Ordinal Logit" = "ordLog")
+            selected <- "linear"
+            
+        } else if (input$phenoDatType == "cont"){
+            choices <- c("Linear Regression" = "linear",
+                         "Linear Mixed Model" = "linMM")
+            selected <- "linear"
+            
+        } else if (input$phenoDatType == "cat"){
+            choices <- c("(-_-)_/¯" = "idk")
+            selected <- "idk"
+        }
+        
+        updateRadioButtons(session,
+                           inputId = "assocTest",
+                           choices = choices,
+                           selected = selected)
+    })
+    
+    # Save genome data to GenotypeData object on "Submit"
+    assocData <- eventReactive(input$assocDo, {
+        req(gData())
 
-}
+        if (input$assocTest == "logistic" | input$assocTest == "linear"){
+            gwasLogLin(gData(), input$assocTest)
+
+        } else if (input$assocTest == "linMM" | input$assocTest == "logMM"){
+            gwasMixed(gData())
+
+        } else {
+            NULL
+        }
+    })
+    
+    # Output pheno data summary
+    output$gwasSummary <- renderTable({
+        assocData() %>% head
+    })
+    
+} #END server
 
 # Run the application 
 shinyApp(ui = ui, server = server)
