@@ -29,7 +29,6 @@ scanObj <- function(data, id, pheno, sex, covars){
   scanAnnot %>% return
 }
 
-
 ########################################################
 ## Open GDS files                                     ##
 ########################################################
@@ -38,9 +37,7 @@ openGDS <- function(path, scan = NULL){
   
   geno <- GdsGenotypeReader(filename = path)
   genoData <- GenotypeData(geno, scanAnnot = scan)
-  
 }
-
 
 ########################################################
 ## Convert plink format to GDS temp file              ##
@@ -62,16 +59,13 @@ plinkToGds <- function(inPath) {
   return(outFile)
 }
 
-
 ########################################################
 ## Perform association test by Linear Mixed Model     ##
 ########################################################
 
-gwasMixed <- function(genoData, covars) {
+gwasMixed <- function(genoData) {
   
-  # Include all covariates, remove the scanID and outcome var's
-  # PROBS BETTER TO HAVE A SELECTION TO SELECT/DESELECT COVARs
-  # covars <- (genoData %>% getScanAnnotation %>% getVariableNames)[-c(1,2)]
+  covars <- (genoData %>% getScanAnnotation %>% getVariableNames)[-c(1,2)]
   
   null.model <- genoData %>% getScanAnnotation %>% 
     fitNullModel(outcome = "phenotype",
@@ -94,19 +88,17 @@ gwasMixed <- function(genoData, covars) {
 ## Regression                                         ##
 ########################################################
 
-gwasLogLin <- function(genoData, model.type, covars) {
+gwasLogLin <- function(genoData, model.type) {
   # model.type = "linear" or "logistic"
   
-  # Include all covariates, remove the scanID and outcome var's
-  # covars <- (genoData %>% getScanAnnotation %>% getVariableNames)[-c(1,2)]
-  
+  covars <- (genoData %>% getScanAnnotation %>% getVariableNames)[-c(1,2)]
   
   chr <- genoData %>% getChromosome
   
   assoc.list <- unique(chr) %>% lapply(function(x) {
-    ## Y chromosome only includes males, cannot have sex as covariate
     ## copied from GWASTools vignette
-    ## NEED TO IMPROVE THIS, MAY NOT HAVE SEX AS COVAR IN FIRST PLACE
+    ## Y chromosome only includes males, cannot have sex as covariate
+    ## !!! NEED TO IMPROVE THIS, MAY NOT HAVE SEX AS COVAR IN FIRST PLACE
     covar <- ifelse(x == 25, yes = covars[-1], no = covars)
     start <- which(chr == x)[1]
     end <- start + (which(chr == x) %>% length) -1
@@ -117,7 +109,6 @@ gwasLogLin <- function(genoData, model.type, covars) {
                     covar = covar,
                     snpStart = start,
                     snpEnd = end)
-    
   })
   
   assoc <- do.call(rbind, assoc.list)
