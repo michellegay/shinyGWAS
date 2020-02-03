@@ -38,7 +38,7 @@ ui = fluidPage(
                             tags$hr(),
                             
                             tabsetPanel(
-                                tabPanel(title = "Genome & Phenotype", fluid = TRUE,
+                                tabPanel(title = "Genome", fluid = TRUE,
                                          
                                          br(),
                                          
@@ -188,7 +188,7 @@ ui = fluidPage(
                                 ), #END tab
                                 
                                 
-                                tabPanel(title = "Covariates", fluid = TRUE,
+                                tabPanel(title = "Sample", fluid = TRUE,
                                          
                                          br(),
                                          
@@ -196,86 +196,61 @@ ui = fluidPage(
                                              condition = "input.fileType == 'vcf'",
                                              
                                              tags$p(paste("VCF files must be accompanied by",
-                                                          "a CSV file containing the fields:",
-                                                          "sample ID, phenotype and sex. The",
-                                                          "sample ID must correspond to the",
-                                                          "ID used in the VCF file.")),
+                                                          "a text file containing at minimum, the fields:",
+                                                          "sample ID, phenotype and sex.",
+                                                          "An ID variable corresponding to the",
+                                                          "genotype data must be selected from the ID field below.")),
                                              br(),
-                                             
-                                             # Input: Select phenotype data file ----
-                                             fileInput(inputId = "phenoFile", 
-                                                       label = "Select sample data file (.csv)",
-                                                       multiple = FALSE,
-                                                       accept = c(".csv")),
-                                             
-                                             tags$hr(),
-                                             
-                                             tags$p(paste("Select the column corresponding",
-                                                          "to each of the specified fields below.")),
-                                             br(),
-                                             
-                                             # Input: Select the id column ----
-                                             selectInput(inputId = "id",
-                                                         label = "ID",
-                                                         choices = character(0),
-                                                         selectize = FALSE),
-                                             
-                                             # Input: Select the phenotype column ----
-                                             selectInput(inputId = "pheno",
-                                                         label = "Phenotype",
-                                                         choices = character(0),
-                                                         selectize = FALSE),
-                                             
-                                             # Input: Select the sex column ----
-                                             selectInput(inputId = "sex",
-                                                         label = "Sex",
-                                                         choices = character(0),
-                                                         selectize = FALSE),
-                                             
-                                             # Input: Select additional covariates ----
-                                             selectInput(inputId = "covars",
-                                                         label = "Other covariates",
-                                                         choices = character(0),
-                                                         selectize = FALSE,
-                                                         multiple = TRUE),
-                                             
-                                             tags$hr()
                                              
                                          ), #END panel
                                          
-                                         tags$p(paste("Select any additional covariates",
-                                                      "to be included in association analyses.",
-                                                      "There must be an ID column selected",
-                                                      "which corresponds to the ID",
-                                                      "in the genotype data. May include phenotype",
-                                                      "data, if so, select the relevant column below.")),
-                                         br(),
+                                         conditionalPanel(
+                                             condition = "input.fileType != 'vcf'",
+                                             
+                                             tags$p(paste("Upload any additional sample data",
+                                                          "for inclusion in association model.",
+                                                          "An ID variable corresponding to the",
+                                                          "genotype data must be selected from the ID field below.",
+                                                          "If phenotype or sex variables are included",
+                                                          ", these must be selected from the relevant",
+                                                          "fields below.")),
+                                             
+                                             br(),
+                                             
+                                         ),
                                          
-                                         # Input: Select phenotype data file ----
-                                         fileInput(inputId = "covarFile", 
-                                                   label = "Select covariate data file (.csv)",
+                                         # Input: Select sample data file ----
+                                         fileInput(inputId = "sampFile", 
+                                                   label = "Select sample data file",
                                                    multiple = TRUE,
-                                                   accept = c(".csv")),
+                                                   accept = c(".csv",
+                                                              ".txt"),
+                                                   placeholder = ".csv or .txt"),
                                          
                                          # Input: Select the id column ----
-                                         selectInput(inputId = "id2",
+                                         selectInput(inputId = "id",
                                                      label = "ID",
                                                      choices = character(0),
                                                      selectize = FALSE),
-                                         
+
                                          # Input: Select the phenotype column ----
-                                         selectInput(inputId = "pheno2",
+                                         selectInput(inputId = "pheno",
                                                      label = "Phenotype",
                                                      choices = character(0),
                                                      selectize = FALSE),
                                          
+                                         # Input: Select the sex column ----
+                                         selectInput(inputId = "sex",
+                                                     label = "Sex",
+                                                     choices = character(0),
+                                                     selectize = FALSE),
+
                                          # Input: Select additional covariates ----
-                                         selectInput(inputId = "moreCovars",
-                                                     label = "Select additional covariates",
-                                                     choices = c("N/A" = ""),
+                                         selectInput(inputId = "covars",
+                                                     label = "Other covariates",
+                                                     choices = character(0),
                                                      selectize = FALSE,
-                                                     multiple = TRUE,
-                                                     selected = ""),
+                                                     multiple = TRUE),
                                          
                                          # Input: Submit button to upload additional data ----
                                          actionButton(inputId = "genoDo",
@@ -309,6 +284,8 @@ ui = fluidPage(
                             
                             tabsetPanel(
                                 tabPanel(title = "Descriptive Statistics", fluid = TRUE,
+                                         
+                                         br(), br(),
                                          
                                          # Output: Summary statistics table
                                          htmlOutput(outputId = "phenoSummary")
@@ -615,12 +592,12 @@ server <- function(input, output, session) {
     })
     
     
-    # --- SAMPLE DATA UPLOADED IN SEPARATE CSV FILE:
+    # --- ADDITIONAL SAMPLE DATA UPLOADED:
     
     sData <- reactive({
-        req(input$phenoFile)
+        req(input$sampFile)
         
-        path <- input$phenoFile$datapath %>% as.character
+        path <- input$sampFile$datapath %>% as.character
         read.csv(path)
     })
     
@@ -630,13 +607,26 @@ server <- function(input, output, session) {
     })
     
     observeEvent(sData(), {
-        updateSelectInput(session, inputId = "pheno", 
-                          choices = names(sData()))
+        if (input$fileType != "vcf"){
+            updateSelectInput(session, inputId = "pheno", 
+                              choices = c("N/A" = "", names(sData())), 
+                              selected = "")
+        } else {
+            updateSelectInput(session, inputId = "pheno", 
+                              choices = names(sData()))
+        }
     })
     
     observeEvent(sData(), {
-        updateSelectInput(session, inputId = "sex", 
-                          choices = names(sData()))
+        if (input$fileType != "vcf"){
+            updateSelectInput(session, inputId = "sex", 
+                              choices = c("N/A" = "", names(sData())), 
+                              selected = "")
+        } else {
+            updateSelectInput(session, inputId = "sex", 
+                              choices = names(sData()))
+        }
+        
     })
     
     observeEvent(sData(), {
@@ -644,62 +634,12 @@ server <- function(input, output, session) {
                           choices = c("N/A" = "", names(sData())), 
                           selected = "")
     })
-    
-    
-    # --- UPLOAD ADDITIONAL COVARIATE DATA:
-    
-    cData <- reactive({
-        req(input$covarFile)
-        
-        path <- input$covarFile$datapath %>% as.character
-        read.csv(path)
-    })
-    
-    observeEvent(cData(), {
-        updateSelectInput(session, inputId = "id2", 
-                          choices = names(cData()))
-    })
-    
-    observeEvent(cData(), {
-        updateSelectInput(session, inputId = "pheno2", 
-                          choices = c("N/A" = "", names(cData())),
-                          selected = "")
-    })
-    
-    observeEvent(cData(), {
-        updateSelectInput(session, inputId = "moreCovars", 
-                          choices = c("N/A" = "", names(cData())), 
-                          selected = "")
-    })
-    
+
     
     # --- COLLATE AND SAVE SAMPLE DATA TO SCANANNOTATION OBJ
     
     scanAnnot <- eventReactive(input$genoDo, {
         
-        if (input$moreCovars != "" | input$pheno2 != ""){
-            id2 <- input$id2
-            
-            if (input$moreCovars != "" & input$pheno2 != ""){
-                cols <- c(id2, input$pheno2, input$moreCovars)
-                
-            } else if (input$moreCovars != ""){
-                cols <- c(id2, input$moreCovars)
-                
-            } else if (input$pheno2 != ""){
-                cols <- c(id2, input$pheno2)
-            }
-            
-            covars2 <- cData()[,cols]
-            covars2[,id2] <- covars2[,id2] %>% as.factor
-            
-            if (input$pheno2 %in% colnames(covars2)){
-                names(covars2)[names(covars2) == input$pheno2] <- 'XX_pheno_XX'
-            }
-        } else {
-            covars2 <- NULL
-        }
-
         if (input$fileType == "vcf"){
             req(sData())
             req(input$id)
@@ -709,26 +649,84 @@ server <- function(input, output, session) {
             id <- sData()[,input$id] %>% as.factor
             pheno <- sData()[,input$pheno]
             sex <- sData()[,input$sex]
-            covars1 <- sData()[,input$covars]
+            covars <- sData()[,input$covars]
             
-            if (!is.null(covars2)){
-                df <- buildScan(id, pheno, sex, covars1, id2, covars2)
-            } else {
-                df <- buildScan(id, pheno, sex, covars1)}
+            df <- buildScan(id, pheno, sex, covars)
             
         } else {
             req(gdsPath())
             
-            if (!is.null(covars2)){
-                df <- extractScan(gdsPath(), id2, covars2)
+            if (!is.null(input$sampFile)){
+                req(sData())
+                req(input$id)
+                
+                validate(
+                    need(input$sex != "" | input$pheno != "" | input$covars != "", 
+                         message = "No variables selected.")
+                )
+                
+                
+                id <- input$id
+                
+                if (input$covars != ""){
+                    if (input$pheno != ""){
+                        if (input$sex != ""){
+                            cols <- c(id, input$pheno, input$sex, input$covars)
+                            
+                        } else if (input$sex == ""){
+                            cols <- c(id, input$pheno, input$covars)}
+                        
+                    } else if (input$pheno == ""){
+                        if (input$sex != ""){
+                            cols <- c(id, input$sex, input$covars)
+                            
+                        } else if (input$sex == ""){
+                            cols <- c(id, input$covars)}}
+                    
+                } else if (input$covars == ""){
+                    if (input$pheno != ""){
+                        if (input$sex != ""){
+                            cols <- c(id, input$pheno, input$sex)
+                            
+                        } else if (input$sex == ""){
+                            cols <- c(id, input$pheno)}
+                        
+                    } else if (input$pheno == ""){
+                        if (input$sex != ""){
+                            cols <- c(id, input$sex)
+                            
+                        } else if (input$sex == ""){
+                            cols <- c(id)}} ### RAISE AN ERROR HERE
+                }
+                
+                covars <- sData()[,cols]
+                covars[,id] <- covars[,id] %>% as.factor
+                
+                if (input$pheno %in% colnames(covars)){
+                    names(covars)[names(covars) == input$pheno] <- 'XX_pheno_XX'
+                }
+                
+                if (input$sex %in% colnames(covars)){
+                    names(covars)[names(covars) == input$sex] <- 'XX_sex_XX'
+                }
+                
+                df <- extractScan(gdsPath(), id, covars)
+                
+                if ("XX_pheno_XX" %in% colnames(df)){
+                    df$phenotype <- df$XX_pheno_XX
+                    df$XX_pheno_XX <- NULL
+                }
+                
+                if ("XX_sex_XX" %in% colnames(df)){
+                    df$sex <- df$XX_sex_XX
+                    df$XX_sex_XX <- NULL
+                }
+                
             } else {
-                df <- extractScan(gdsPath())}}
-        
-        if ("XX_pheno_XX" %in% colnames(df)){
-            df$phenotype <- df$XX_pheno_XX
-            df$XX_pheno_XX <- NULL
+                df <- extractScan(gdsPath())
+            }
         }
-        
+
         scan <- scanObj(df)
         scan %>% return
     })
@@ -816,14 +814,9 @@ server <- function(input, output, session) {
                         input$machImps3)
         }
         
-        if (!is.null(input$phenoFile)){
+        if (!is.null(input$sampFile)){
             df <- rbind(df,
-                        input$phenoFile)
-        }
-        
-        if (!is.null(input$covarFile)){
-            df <- rbind(df,
-                        input$covarFile)
+                        input$sampFile)
         }
         
         

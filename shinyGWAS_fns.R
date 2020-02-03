@@ -48,12 +48,24 @@ extractScan <- function(gdsFile, id2 = NULL, covars = NULL){
   
   gds <- GdsGenotypeReader(gdsFile)
   
-  scanID <- getScanID(gds)
+  scanID <- getScanID(gds) %>% as.factor
+  
   sex <- getVariable(gds, "sample.annot/sex")
+  
+  if (is.null(sex)){
+    sex <- rep(0, length(scanID))
+  }
+  
   sex[sex == ""] <- NA
+  
   phenotype <- getVariable(gds, "sample.annot/phenotype")
   
+  if (is.null(phenotype)){
+    phenotype <- rep(0, length(scanID))
+  }
+  
   close(gds)
+  
   
   df <- data.frame(scanID = scanID,
                    phenotype = phenotype,
