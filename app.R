@@ -445,7 +445,44 @@ ui = fluidPage(
                      ) #END column
                  ), #END row
                  
-        ) #END tab
+        ), #END tab
+        
+        ################################################
+        ## Tab 4 Interactive Manhattan Plot           ##
+        ################################################
+        
+        tabPanel("Interactive Manhattan", fluid = TRUE,
+                 
+                 # Title ----
+                 titlePanel("Interactive Manhattan Plot"),
+                 
+                 
+                 fluidRow(
+                     column(4,
+                            tags$hr(),
+                            
+                            add_busy_spinner(spin = "fading-circle"),
+                            
+                            selectInput(inputId = "chr",
+                                        label = "Select Chromosome(s)",
+                                        multiple = TRUE,
+                                        choices = character(0),
+                                        selectize = FALSE),
+                            
+                     ), #END column
+                 ), #END row
+                 
+                 fluidRow(
+                     tags$hr(),
+                     column(11,
+                            
+                            #Output: Manhattan plot ----
+                            plotlyOutput(outputId = "manPlot2")
+                            
+                     ), #END column
+                     
+                 ), #END row
+            ) #END tab
      ) #END tabset
 ) #END ui
 
@@ -961,8 +998,10 @@ server <- function(input, output, session) {
 
     
     ################################################
-    ## Tab 4 Display GWAS results and figures     ##
+    ## Tab 3 Display GWAS results and figures     ##
     ################################################
+    
+    # --- PRINT STATIC MANHATTAN PLOT
     
     output$manPlot <- renderCachedPlot({
         
@@ -979,6 +1018,8 @@ server <- function(input, output, session) {
     }, cacheKeyExpr = list(sigValue(), assocData()))
     
     
+    # --- PRINT STATIC QQ PLOT
+    
     output$qqPlot <- renderCachedPlot({
         
         par(pty = "s")
@@ -986,6 +1027,60 @@ server <- function(input, output, session) {
     }, cacheKeyExpr = list(sigValue(), assocData()))
 
 
+    ################################################
+    ## Tab 4 INTERACTIVE MANHATTAN PLOT           ##
+    ################################################
+    
+    # --- UPDATE CHROMOSOME CHOICES
+    
+    observeEvent(assocData(), {
+        req(assocData())
+        updateSelectInput(session, inputId = "chr", 
+                          choices = c(" " = "", unique(assocData()$chr)))
+    })
+    
+    
+    # --- SAVE SELECTED CHROMOSOME VALUE
+    
+    chr <- reactive({
+        req(input$chr)
+        
+        if (input$chr != ""){
+            chr <- input$chr
+        } else {
+            chr <- NULL
+        }
+        chr %>% return
+    })
+    
+    
+    # --- PRINT INTERACTIVE MANHATTAN PLOT
+    
+    output$manPlot2 <- renderPlotly({
+        req(assocData())
+        req(sigValue())
+        req(input$chr != "")
+        
+        
+        dat <- assocData()[which(assocData()$chr == chr()), ]
+        
+        # please see the details on Manhattanly package for this code http://sahirbhatnagar.com/manhattanly/
+        manhattanly(x = dat,
+                    chr = "chr",
+                    snp = "snpID",
+                    p = "Wald.pval",
+                    bp = "pos",
+                    col=c("#88CCEE","#44AA99","#117733","#999933",
+                          "#DDCC77","#CC6677","#882255","#AA4499"),
+                    point_size = 2,
+                    xlab = "Chromosome",
+                    ylab = "-log10(p)",
+                    suggestiveline = sigValue(),
+                    suggestiveline_color = "blue",
+                    suggestiveline_width = 1,
+                    title = "")
+    })
+    
 } #END server
 
 # Run the application 
