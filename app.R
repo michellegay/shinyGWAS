@@ -2,9 +2,7 @@
 library(shiny)
 library(shinybusy)
 library(magrittr)
-# library(GENESIS)
 library(SNPRelate)
-# library(lme4)
 library(GWASTools)
 library(GWASdata)
 library(qqman)
@@ -15,6 +13,7 @@ library(DT)
 library(plotly)
 library(qqman)
 library(dplyr)
+library(shinythemes)
 
 
 # --- Set size of allowed file uploads.
@@ -22,36 +21,69 @@ gb <- 3 #number of GB
 options(shiny.maxRequestSize = (gb*1000)*1024^2)
 
 ui = fluidPage(
-    br(),
-    tabsetPanel(
+    navbarPage(
+        theme = shinythemes::shinytheme("simplex"),
+        "shinyGWAS",
+        
+        ################################################
+        ## Tab 0 Instructions and specifications      ##
+        ################################################
+        
+        tabPanel(title = "INFO", fluid = TRUE,
+                 titlePanel("User Reference"),
+                 
+                 
+                 
+                 ), #END tab
+        
+        
+        
         
         ################################################
         ## Tab 1 Uploading Phenotype & Covariate data ##
         ################################################
         
-        tabPanel(title = "Upload Data", fluid = TRUE,
+        tabPanel(title = "UPLOAD DATA", fluid = TRUE,
                  titlePanel("Upload Data"),
+                 br(),
+                 # titlePanel("Upload Data"),
                  
                  fluidRow( 
-                     column(4,
-                            tags$hr(),
+                     # column(4,
+                     sidebarPanel(
+                            # tags$hr(),
                             
                             # --- Side bar with two tabs for uploading data
                             tabsetPanel(
                                 # --- Sidebar tab #1 where user uploads genome data
-                                tabPanel(title = "Genome", fluid = TRUE,
-                                         
+                                tabPanel(title = "Step one", fluid = TRUE,
+                                         br(),
+                                         h4("Upload genome data"),
                                          br(),
                                          
                                          # --- Input: User checks box if using imputed data.
                                          # --- Default selection is FALSE (not imputed)
                                          checkboxInput(inputId = "isImpute", 
-                                                       label = "Check box if data has been imputed", 
+                                                       label = "Imputed data", 
                                                        value = FALSE),
                                          
-                                         tags$hr(),
+                                         # --- If data is imputed, user is asked to specify whether imputed data
+                                         # --- is recorded as dosages or genotype probabilities.
+                                         # --- Default selection is dosages.
+                                         conditionalPanel(
+                                             condition = "input.isImpute == 1",
+                                             br(),
+                                             
+                                             radioButtons(inputId = "isDosage",
+                                                          label = NULL,
+                                                          choices = c("Dosage" = TRUE,
+                                                                      "Genotype Probabilities" = FALSE),
+                                                          selected = TRUE),
+                                             
+                                         ), #END panel
                                          
                                          # --- Input: User selects the file format of genome data.
+                                         tags$hr(),
                                          radioButtons(inputId = "fileType",
                                                       label = "Select file format",
                                                       choices = c("GDS" = "gds",
@@ -61,23 +93,7 @@ ui = fluidPage(
                                                                   "BEAGLE" = "BEAGLE",
                                                                   "MaCH" = "MaCH")),
                                          
-                                         tags$hr(),
-                                         
-                                         # --- If data is imputed, user is asked to specify whether imputed data
-                                         # --- is recorded as dosages or genotype probabilities.
-                                         # --- Default selection is dosages.
-                                         conditionalPanel(
-                                             condition = "input.isImpute == 1",
-                                             
-                                             radioButtons(inputId = "isDosage",
-                                                          label = "Indicate how imputed data is represented",
-                                                          choices = c("Dosage" = TRUE,
-                                                                      "Genotype Probabilities" = FALSE),
-                                                          selected = TRUE),
-                                             
-                                             tags$hr()
-                                             
-                                         ), #END panel
+                                        br(),
                                          
                                          # --- If genome data is GDS format, user is asked to upload GDS file.
                                          conditionalPanel(
@@ -187,38 +203,19 @@ ui = fluidPage(
                                 
                                 # --- Sidebar tab #2 where user uploads additional 
                                 # --- sample data if required and covariate data.
-                                tabPanel(title = "Sample", fluid = TRUE,
+                                tabPanel(title = "Step two", fluid = TRUE,
+                                         br(),
+                                         h4("Upload sample data"),
                                          br(),
                                          
-                                         # --- If genome data is VCF format, show instructions for
-                                         # --- compulsary upload of additional sample information.
-                                         conditionalPanel(
-                                             condition = "input.fileType == 'vcf'",
-                                             
-                                             tags$p(paste("VCF files must be accompanied by",
-                                                          "a text file containing at minimum, the fields:",
-                                                          "sample ID, phenotype and sex.",
-                                                          "An ID variable corresponding to the",
-                                                          "genotype data must be selected from the ID field below.")),
-                                             br(),
-                                         ), #END panel
+                                         # --- Input: User checks box if sample data has
+                                         # --- no column names
+                                         radioButtons(inputId = "hasHeader",
+                                                      label = NULL,
+                                                      choices = c("With column headers" = 1,
+                                                                  "No column headers" = 0),
+                                                      selected = 1),
                                          
-                                         # --- If genome data is NOT vcf format, show instructions for
-                                         # --- optional upload of additional sample data.
-                                         conditionalPanel(
-                                             condition = "input.fileType != 'vcf'",
-                                             
-                                             tags$p(paste("Upload any additional sample data",
-                                                          "for inclusion in association model.",
-                                                          "An ID variable corresponding to the",
-                                                          "genotype data must be selected from the ID field below.",
-                                                          "If phenotype or sex variables are included",
-                                                          ", these must be selected from the relevant",
-                                                          "fields below.")),
-                                             
-                                             br(),
-                                         ),
-                        
                                          # --- User uploads additional sample data file in CSV or TXT format
                                          fileInput(inputId = "sampFile", 
                                                    label = "Select sample data file",
@@ -259,15 +256,19 @@ ui = fluidPage(
                                                      selectize = FALSE,
                                                      multiple = TRUE),
                                          
+                                         br(),
+                                         
                                          # --- User selects this button to upload data and see summary
                                          # --- information.
                                          actionButton(inputId = "genoDo",
-                                                      label = "Upload genome data"),
+                                                      label = "Upload data"),
+                                         
+                                         br(),br(),
+                                         textOutput("uploadComplete"),
+                                         br(),
                                          
                                  ) #END tab
                             ), #END tabset
-                            
-                            tags$hr(),
                             
                             # --- Places a spinning circle in the corner of the page to
                             # --- show when the app is busy computing.
@@ -277,7 +278,8 @@ ui = fluidPage(
                      
                      # --- Right-hand panel which displays summary figures and information
                      # --- about the uploaded genome and sample data.
-                     column(8,
+                     # column(8,
+                     mainPanel(
                             
                             # --- The following code makes the pair-wise plot re-size to
                             # --- the size of window.
@@ -292,30 +294,123 @@ ui = fluidPage(
                             });
                             ')),
                             
-                            tags$hr(),
                             tabsetPanel(
-                                # --- First tab shows descriptive information about the 
+                                # --- tab #0 gives instructions for uploading data.
+                                # --- Instructions will update depending on the 
+                                # --- type of data uploaded
+                                tabPanel(title = "Instructions", fluid = TRUE,
+                                         
+                                         column(6,
+                                                br(),
+                                                h4("Step One: Upload genome data"),
+                                                tags$hr(),
+                                                
+                                                h5("1.  Imputed data:"),
+                                                p(paste("If you are uploading imputed data,",
+                                                        "check the 'Imputed data' box then specify",
+                                                        "whether imputed data is represented as",
+                                                        "dosages or genotype probabilities.")),
+                                                
+                                                br(),
+                                                h5("2.  Data format:"),
+                                                p(paste("Select the appropriate format that genome data",
+                                                        "are stored in.")),
+                                                
+                                                br(),
+                                                h5("3.  Upload genome data files:"),
+                                                p(paste("If data are stored across",
+                                                        "multiple file types (e.g. PLINK format files), upload",
+                                                        "each file type in the correct upload field as directed.")),
+                                                p(paste("If data are stored across multiple files of the same type",
+                                                        "(e.g. data are saved by chromosome), hold 'Ctrl' to select",
+                                                        "all relevant files.")),
+                                                
+                                                p(paste("NOTE: When uploading multiple files AND",
+                                                        "multiple file types, the number of files",
+                                                        "uploaded in each upload field must be the same",
+                                                        "and correspond to the same data."))
+                                                
+                                                ), #END column
+                                         
+                                         column(6, 
+                                                br(), 
+                                                h4("Step Two: Upload sample data"),
+                                                tags$hr(),
+                                                
+                                                h5("1.  Upload sample data file:"),
+                                                # --- If genome data is VCF format, show instructions for
+                                                # --- compulsary upload of additional sample information.
+                                                conditionalPanel(
+                                                    condition = "input.fileType == 'vcf'",
+                                                    
+                                                    p(paste("VCF files must be accompanied by",
+                                                            "a text file in .txt or .csv format which contain",
+                                                            "at minimum, the following fields:")),
+                                                    p("- A unique sample ID,"),
+                                                    p("- Phenotype data, and"),
+                                                    p("- Sex data, formatted as 'M/F'"),
+                                                    p(paste("NOTE: the sample ID must correspond to",
+                                                            "the genotype data.")),
+                                                    
+                                                ), #END panel
+                                                
+                                                # --- If genome data is NOT vcf format, show instructions for
+                                                # --- optional upload of additional sample data.
+                                                conditionalPanel(
+                                                    condition = "input.fileType != 'vcf'",
+                                                    
+                                                    p("-- OPTIONAL --"),
+                                                    p(paste("Upload any additional sample data",
+                                                            "for inclusion in association model.")),
+                                                    p(paste("Data must be in .csv or .txt format and must",
+                                                            "include a unique sample ID field which",
+                                                            "corresponds to the genotype data.")),
+                                                    
+                                                ), #END panel
+                                                
+                                                br(),
+                                                h5("2.  Select variables:"),
+                                                p("-- IGNORE IF NO SAMPLE DATA SELECTED --"),
+                                                p(paste("From the 'ID' drop-down menu, select the column",
+                                                        "that corresponds to the unique sample ID.")),
+                                                p(paste("If the sample data contains phenotype or sex data",
+                                                        "select the corresponding columns from the respective",
+                                                        "drop-down menus.")),
+                                                p(paste("If the data contain any additional covariates (e.g.",
+                                                        "principle components), that you wish you include in the model",
+                                                        ", select these from the 'Other covariates' menu.",
+                                                        "Click and drag or hold 'Ctrl' to select multiple covariates.")),
+                                                
+                                                br(),
+                                                h5("3.  Upload data"),
+                                                p("Click 'Upload data' button to confirm settings and upload data.")
+                                                
+                                                ) #END column
+                                ), #END tab
+                                
+                                
+                                # --- tab #1 shows descriptive information about the 
                                 # --- data in a table format.
                                 # --- htmlOutput() shows table as it would appear when 
                                 # --- knitted in R, as opposed to the shiny table format.
-                                tabPanel(title = "Descriptive Statistics", fluid = TRUE,
+                                tabPanel(title = "Data summary", fluid = TRUE,
                                          br(), br(),
                                          
                                          htmlOutput(outputId = "phenoSummary")
                                          
                                          ), #END tab
                                 
-                                # --- Second tab shows a correlation plot with histograms.    
-                                tabPanel(title = "Pair-wise Comparisons", fluid = TRUE,
+                                # --- tab #2 shows a correlation plot with histograms.    
+                                tabPanel(title = "Correlation", fluid = TRUE,
                                          br(), br(),
                                          
                                          plotOutput(outputId = "heatmap")
                                          
                                          ), #END tab
                                 
-                                # --- Third tab shows the files that have been uploaded and their size.
+                                # --- tab #3 shows the files that have been uploaded and their size.
                                 # --- DT::dataTableOutput returns an interactive table.
-                                tabPanel(title = "Files", fluid = TRUE,
+                                tabPanel(title = "File summary", fluid = TRUE,
                                          br(), br(),
                                          
                                          DT::dataTableOutput(outputId = "filesUploaded")
@@ -330,14 +425,17 @@ ui = fluidPage(
         ## Tab 2 Configure Association Test           ##
         ################################################
         
-        tabPanel("Association", fluid = TRUE,
-                 titlePanel("Association Test Settings"),
+        tabPanel("RUN TEST", fluid = TRUE,
+                 titlePanel("Select Model and Run Test"),
+                 br(),
+                 # titlePanel("Association Test Settings"),
                  
                  fluidRow(
                      # --- Sidebar where association test options
                      # --- are displayed.
-                     column(4,
-                            tags$hr(),
+                     # column(4,
+                     sidebarPanel(
+                            # tags$hr(),
                             
                             # --- User selects the data-type of the phenotype data.
                             # --- Currently only supports binary and quantitative data-types.
@@ -368,20 +466,16 @@ ui = fluidPage(
                             # --- Currently only genome-wide significance and Bonferroni available.
                             # --- Default selection is Bonferroni.
                             radioButtons(inputId = "multiCompars", 
-                                         label = "Select correction method to calculate significance threshold",
+                                         label = "Select correction method",
                                          choices = c("Gemone-wide significance (5e-8)" = "wgs",
                                                      "Bonferroni at alpha = 0.05 (alpha/No. SNPs)" = "bonf"),
                                          selected = "bonf"),
                             
-                            tags$hr(),
+                            br(),
                             
                             # --- User is asked to select a folder where the results of 
                             # --- association testing and the summary report will be
                             # --- automatically saved when association is complete.
-                            tags$p(
-                                tags$b(paste("Select a folder where the results",
-                                             "of association analysis will be saved."))),
-                            
                             shinyDirButton(id = "saveDir", 
                                            label = "Select a folder",
                                            title = "Select a folder"),
@@ -391,28 +485,70 @@ ui = fluidPage(
                             # --- Shows the folder path that has been selected.
                             verbatimTextOutput("directorypath"),
                             
-                            tags$hr(),
+                            br(), br(),
                             
                             # --- User clicks this button to confirm settings and 
                             # --- begin the association test.
                             actionButton(inputId = "assocDo",
-                                         label = "Run Association")
+                                         label = "Run test"),
+                            
+                            br(), br(),
+                            textOutput("testComplete"),
+                            br(),
                             
                             ), #END column
                      
                      # --- Right-hand panel where results of association test will be displayed.
-                     column(8,
-                            tags$hr(),
-                            
-                            # --- Places a spinning circle in the corner of the page to
-                            # --- show when the app is busy computing.
-                            add_busy_spinner(spin = "fading-circle"),
-                            
-                            # --- Shows the statistic results of the association test
-                            # --- in an interactive table.
-                            DT::dataTableOutput(outputId = "gwasSummary"),
-                            
-                     ) #END column
+                     # column(8,
+                     mainPanel(
+                         tabsetPanel(
+                             # --- tab #0 gives instructions for selecting model settings.
+                             tabPanel(title = "Instructions", fluid = TRUE,
+                                      br(),
+                                      h4("Step Three: Select model settings"),
+                                      tags$hr(),
+                                      
+                                      h5("1.  Select model:"),
+                                      p("Indicate the type of phenotype data to be analysed."),
+                                      p("From the available options, select the association model to be used."),
+                                      
+                                      br(),
+                                      h5("2.  Select p-value correction:"),
+                                      p(paste("Select the equation for adjusting the signifiance",
+                                              "threshold to correct for multiple comparisons.")),
+                                      p(paste("- Genome-wide significance: a standard threshold",
+                                              "set to 5e-8 (0.00000005)")),
+                                      p(paste("- Bonferroni: calculated by dividing alpha (set to 0.05)",
+                                              "by the number of SNPs to be analysed. i.e. (0.05)/(no. SNPS).")),
+                                      
+                                      br(),
+                                      h5("3.  Save results:"),
+                                      p(paste("Select a folder where results of association test and",
+                                              "summary report will be saved.")),
+                                      
+                                      br(),
+                                      h5("4.  Run test:"),
+                                      p("Click 'Run test' button to confirm settings and run association analyses.")
+                                      
+                             ), #END tab
+                             
+                             tabPanel(title = "Significant SNPs", fluid = TRUE,
+                                      
+                                      br(),
+                                      h4("Significant SNPs"),
+                                      br(),
+                                      
+                                      # --- Places a spinning circle in the corner of the page to
+                                      # --- show when the app is busy computing.
+                                      add_busy_spinner(spin = "fading-circle"),
+                                      
+                                      # --- Shows the significant SNPs of the association test
+                                      # --- in an interactive table.
+                                      DT::dataTableOutput(outputId = "gwasSigs")
+                                      
+                            ) #END tab
+                         ) #END tabset
+                     ) #END main panel
                  ) #END row
         ),#END tab
         
@@ -420,11 +556,13 @@ ui = fluidPage(
         ## Tab 3 Display GWAS results and figures     ##
         ################################################
         
-        tabPanel("Results", fluid = TRUE,
-                 titlePanel("Results and Figures"),
+        tabPanel("FIGURES", fluid = TRUE,
+                 titlePanel("Manhattan and QQ Plots"),
+                 br(),
                  
                  fluidRow(
                      tags$hr(),
+                     br(),br(),
                      column(7,
                             
                             # --- Places a spinning circle in the corner of the page to
@@ -446,44 +584,78 @@ ui = fluidPage(
                  ), #END row
         ), #END tab
         
+        
         ################################################
         ## Tab 4 Interactive Manhattan Plot           ##
         ################################################
         
-        tabPanel("Interactive Manhattan", fluid = TRUE,
-                 titlePanel("Interactive Manhattan Plot"),
-                 
-                 fluidRow(
-                     column(4,
-                            tags$hr(),
-                            
-                            # --- Places a spinning circle in the corner of the page to
-                            # --- show when the app is busy computing.
-                            add_busy_spinner(spin = "fading-circle"),
-                            
-                            # --- User selects the chromosomes they wish to show on plot.
-                            # --- Multiple chromosomes can be selected.
-                            # --- Chromosome selection allows plot to render faster, especially
-                            # --- if user is only interested in a few chromosomes.
-                            selectInput(inputId = "chr",
-                                        label = "Select Chromosome(s)",
-                                        multiple = TRUE,
-                                        choices = character(0),
-                                        selectize = FALSE),
-                            
-                     ), #END column
-                 ), #END row
+        tabPanel("RESULTS", fluid = TRUE,
+                 titlePanel("GWAS Results"),
+                 br(),
                  
                  fluidRow(
                      tags$hr(),
-                     column(11,
-                            
-                            # --- Show interactive Manhattan plot.
-                            plotlyOutput(outputId = "manPlot2")
-                            
-                     ) #END column
+                     br(),
+                     
+                     column(1,
+                            ), #END column
+                     
+                     column(10,
+                            # --- Shows all results of the association test
+                            # --- in an interactive table.
+                            DT::dataTableOutput(outputId = "gwasSummary")
+                            ), #END column
+                     
+                     column(1,
+                            )
+                     
                  ) #END row
-            ) #END tab
+        ) #END tab
+        
+        
+        
+        
+        ################################################
+        ## Tab 5 Interactive Manhattan Plot           ##
+        ################################################
+        # 
+        # --- CURRENTLY DISABLED BECAUSE PLOTLY SEEMS TO SHOW ONLY
+        # --- A SUBSET OF ALL POINTS AND CANNOT BE TRUSTED!
+        # 
+        # tabPanel("Interactive Manhattan", fluid = TRUE,
+        #          titlePanel("Interactive Manhattan Plot"),
+        #          
+        #          fluidRow(
+        #              column(4,
+        #                     tags$hr(),
+        #                     
+        #                     # --- Places a spinning circle in the corner of the page to
+        #                     # --- show when the app is busy computing.
+        #                     add_busy_spinner(spin = "fading-circle"),
+        #                     
+        #                     # --- User selects the chromosomes they wish to show on plot.
+        #                     # --- Multiple chromosomes can be selected.
+        #                     # --- Chromosome selection allows plot to render faster, especially
+        #                     # --- if user is only interested in a few chromosomes.
+        #                     selectInput(inputId = "chr",
+        #                                 label = "Select Chromosome(s)",
+        #                                 multiple = TRUE,
+        #                                 choices = character(0),
+        #                                 selectize = FALSE),
+        #                     
+        #              ), #END column
+        #          ), #END row
+        #          
+        #          fluidRow(
+        #              tags$hr(),
+        #              column(11,
+        #                     
+        #                     # --- Show interactive Manhattan plot.
+        #                     plotlyOutput(outputId = "manPlot2")
+            #                 
+            #          ) #END column
+            #      ) #END row
+            # ) #END tab
      ) #END tabset
 ) #END ui
 
@@ -558,9 +730,9 @@ server <- function(input, output, session) {
                          message = "Imputed data must be represented as dosages.")
                 )
                 
-                seqVCF2GDS(vcf.fn = inPath, 
-                           out.fn = outFile, 
-                           fmt.import="DS")
+                path <- seqVCF2GDS(vcf.fn = inPath, 
+                                   out.fn = outFile, 
+                                   fmt.import="DS")
                 ##################################
                 ##################################
                 ##################################
@@ -674,13 +846,50 @@ server <- function(input, output, session) {
     
     
     # --- READ IN ADDITIONAL SAMPLE DATA
+    # --- Automatically detect .csv or .txt format
+    # --- Return an error if neither of these formats
+    # --- If data has no headers, creates header as 
+    # --- column number + the value in the first row
+    # --- e.g. 1_val1, 2_val2 etc.
     
     sData <- reactive({
         req(input$sampFile)
         
         path <- input$sampFile$datapath %>% as.character
-        read.csv(path)
+        ext <- substr(x = path, 
+                      start = (nchar(path)-2), 
+                      stop = nchar(path)) %>% tolower()
+        
+        validate(
+            need(ext == "txt" | ext == "csv", 
+                 message = "File must be .csv or .txt format.")
+        )
+        
+        if (input$hasHeader == 1){
+            header <- TRUE
+        } else if (input$hasHeader == 0){
+            header <- FALSE
+        }
+        
+        if (ext == "csv"){
+            dat <- read.csv(path, header = header)
+        } else {
+            dat <- read.table(path, header = header)
+        }
+        
+        if (input$hasHeader == 0){
+            n <- c(1:ncol(dat)) %>% as.character()
+            
+            for (ii in 1:length(n)){
+                n[ii] <- paste(n[ii], dat[1, ii], sep = "_")
+            }
+            
+            names(dat) <- n
+        }
+        
+        dat %>% return
     })
+
     
     # --- Update selection fields with column names from sample data file
     # --- for selecting the columns that correspond to ID, 
@@ -703,14 +912,18 @@ server <- function(input, output, session) {
     })
     
     observeEvent(sData(), {
-        if (input$fileType != "vcf"){
-            updateSelectInput(session, inputId = "sex", 
-                              choices = c("N/A" = "", names(sData())), 
+            updateSelectInput(session, inputId = "sex",
+                              choices = c("N/A" = "", names(sData())),
                               selected = "")
-        } else { #if genome data is vcf format, this is compulsary
-            updateSelectInput(session, inputId = "sex", 
-                              choices = names(sData()))
-        }
+        
+        # if (input$fileType != "vcf"){
+        #     updateSelectInput(session, inputId = "sex", 
+        #                       choices = c("N/A" = "", names(sData())), 
+        #                       selected = "")
+        # } else { #if genome data is vcf format, this is compulsary
+        #     updateSelectInput(session, inputId = "sex", 
+        #                       choices = names(sData()))
+        # }
         
     })
     
@@ -719,7 +932,15 @@ server <- function(input, output, session) {
                           choices = c("N/A" = "", names(sData())), 
                           selected = "")
     })
+    
 
+    # --- OPEN GENOME DATA IN READER OBJECT
+    
+    gReader <- eventReactive(input$genoDo, {
+        req(gdsPath())
+        GdsGenotypeReader(filename = gdsPath())
+    })
+    
     
     # --- COLLATE AND SAVE SAMPLE DATA TO SCANANNOTATION OBJ
     # --- Depending on genome data format, will extract 
@@ -727,25 +948,29 @@ server <- function(input, output, session) {
     # --- sample data has been provided this will be used instead.
     
     scanAnnot <- eventReactive(input$genoDo, { #run this when file upload button is selected
+        req(gReader())
         
         if (input$fileType == "vcf"){ #if genome data in VCF format...
             req(sData())
             req(input$id)
             req(input$pheno)
-            req(input$sex)
             
             id <- sData()[,input$id] %>% as.factor
             pheno <- sData()[,input$pheno]
-            sex <- sData()[,input$sex]
-            covars <- sData()[,input$covars]
             
             df <- data.frame(scanID = id,
-                             phenotype = pheno,
-                             sex = sex)
+                             phenotype = pheno)
             
-            if (covars != ""){
-                df <- data.frame(df,covars)
+            if (input$sex != ""){
+                sex <- sData()[,input$sex]
+                df <- data.frame(df, sex = sex)
             }
+            
+            if (input$covars != ""){
+                covars <- sData()[,input$covars]
+                df <- data.frame(df, covars)
+            }
+            
             
         } else { #if genome data NOT in VCF format...
             req(gdsPath())
@@ -809,7 +1034,7 @@ server <- function(input, output, session) {
                     names(covars)[names(covars) == input$sex] <- 'XX_sex_XX'
                 }
                 
-                df <- extractScan(gdsPath(), id, covars) #call function from shinyGWAS_fns.R
+                df <- extractScan(gReader(), id, covars) #call function from shinyGWAS_fns.R
                 
                 if ("XX_pheno_XX" %in% colnames(df)){ #replace extracted phenotype with selected
                     df$phenotype <- df$XX_pheno_XX
@@ -822,12 +1047,33 @@ server <- function(input, output, session) {
                 }
                 
             } else { #if no additional sample file has been selected...
-                df <- extractScan(gdsPath())
+                df <- extractScan(gReader())
             }
         }
-
+        
+        genomeIDs <- getScanID(gReader()) %>% as.factor() %>% as.data.frame()
+        names(genomeIDs) <- "scanID"
+        
+        # --- MIGHT RESULT IN REMOVAL OF SAMPLES HERE
+        # --- SHOULD THINK OF WAY TO DOCUMENT REMOVED
+        # --- SAMPLES AND INCLUDE IN SUMMARY REPORT
+        if (nrow(genomeIDs) > nrow(df)){
+            df <- full_join(genomeIDs, df, by = "scanID")
+        } else if (nrow(genomeIDs) < nrow(df)){
+            df <- inner_join(genomeIDs, df, by = "scanID")
+        }
+        
+        validate(
+            need(nrow(df) == nrow(genomeIDs),
+                 message = "ERROR: Sample ID's do not match genome data.")
+        )
+        
         scan <- df %>% ScanAnnotationDataFrame
-        scan$sex <- scan$sex %>% as.factor
+        
+        if ("sex" %in% names(scan)){
+            scan$sex <- scan$sex %>% as.factor
+        }
+        
         scan %>% return
     })
     
@@ -836,10 +1082,18 @@ server <- function(input, output, session) {
     
     gData <- eventReactive(input$genoDo, {
         req(scanAnnot())
-        req(gdsPath())
         
-        GdsGenotypeReader(filename = gdsPath()) %>% 
+        gReader() %>% 
             GenotypeData(scanAnnot = scanAnnot())
+        
+    })
+    
+    
+    # --- INDICATE THAT GENOME DATA UPLOAD WAS SUCCESSFUL
+    
+    output$uploadComplete <- renderText({
+        req(gData())
+        "Upload complete."
     })
     
     
@@ -1064,6 +1318,14 @@ server <- function(input, output, session) {
     })
     
     
+    # --- INDICATE THAT ASSOCIATION TEST WAS SUCCESSFUL
+    
+    output$testComplete <- renderText({
+        req(assocData())
+        "Test complete."
+    })
+    
+    
     # --- UPDATE SIGNIFICANCE VALUE
     # --- according to user selection
     
@@ -1078,41 +1340,45 @@ server <- function(input, output, session) {
     })
     
     
-    # --- PRINT RESULTS OF ASSOCIATION TEST
+    # --- PRINT SIGNIFICANT RESULTS OF ASSOCIATION TEST
     # --- as intereactive table
     
-    output$gwasSummary <- DT::renderDataTable({
+    output$gwasSigs <- DT::renderDataTable({
         req(assocData())
+        req(sigValue())
         
-        datatable(assocData(), 
-                  rownames = TRUE, 
-                  options = list(scrollX = TRUE)) #allow table to scroll horizontally
+        cols <- c("SNP", "CHR", "P")
+        dat <- assocData()[which(assocData()$P <= sigValue()), cols]
+        
+        datatable(dat, 
+                  rownames = TRUE,
+                  options = list(scrollX = TRUE))
     })
-
+    
     
     ################################################
-    ## Tab 3 Display GWAS results and figures     ##
+    ## Tab 3 Display GWAS figures                 ##
     ################################################
     
     # --- PRINT STATIC MANHATTAN PLOT
     
-    # output$manPlot <- renderCachedPlot({
-    #     
-    #     logs <- -log10(assocData()$P)
-    # 
-    #     manhattanPlot(p = assocData()$P,
-    #                   chromosome = assocData()$CHR,
-    #                   signif = sigValue(),
-    #                   ylim = range(c(0, max(logs, na.rm = TRUE)+1)))
-    # 
-    # }, cacheKeyExpr = list(sigValue(), assocData()))
+    output$manPlot <- renderCachedPlot({
+
+        logs <- -log10(assocData()$P)
+
+        manhattanPlot(p = assocData()$P,
+                      chromosome = assocData()$CHR,
+                      signif = sigValue(),
+                      ylim = range(c(0, max(logs, na.rm = TRUE)+1)))
+
+    }, cacheKeyExpr = list(sigValue(), assocData()))
     
-    output$manPlot <- renderPlot({
-        req(assocData())
-        req(sigValue())
-        
-        gg.manhattan(assocData(), sigValue()) #call function from shinyGWAS_fns.R
-    })
+    # output$manPlot <- renderPlot({
+    #     req(assocData())
+    #     req(sigValue())
+    #     
+    #     gg.manhattan(assocData(), sigValue()) #call function from shinyGWAS_fns.R
+    # })
 
     
     # --- PRINT STATIC QQ PLOT
@@ -1122,49 +1388,67 @@ server <- function(input, output, session) {
         qq(assocData()$P)
         
     }, cacheKeyExpr = list(sigValue(), assocData()))
-
-
+    
+    
     ################################################
-    ## Tab 4 INTERACTIVE MANHATTAN PLOT           ##
+    ## Tab 4 ALL RESULTS TABLE                    ##
     ################################################
     
-    # --- UPDATE CHROMOSOME CHOICES
-    
-    observeEvent(assocData(), {
+    # --- PRINT SIGNIFICANT RESULTS OF ASSOCIATION TEST
+    # --- as intereactive table
+    output$gwasSummary <- DT::renderDataTable({
         req(assocData())
-        
-        updateSelectInput(session, inputId = "chr", 
-                          choices = c(" " = "", unique(assocData()$CHR)))
+
+        datatable(assocData(),
+                  rownames = TRUE,
+                  options = list(scrollX = TRUE)) #allow table to scroll horizontally
     })
     
     
-    # --- SAVE SELECTED CHROMOSOME VALUE
-    # --- If no selection made, make = NULL
-    
-    chr <- reactive({
-        req(input$chr)
-        
-        if (input$chr != ""){
-            chr <- input$chr
-        } else {
-            chr <- NULL
-        }
-        chr %>% return
-    })
-    
-    
-    # --- PRINT INTERACTIVE MANHATTAN PLOT
-    
-    output$manPlot2 <- renderPlotly({
-        req(assocData())
-        req(sigValue())
-        req(input$chr != "")
-        
-        dat <- assocData()[which(assocData()$CHR == chr()), ]
-        
-        gg.manhattan(dat, sigValue()) %>% #call function from shinyGWAS_fns.R
-            ggplotly(tooltip = "text", )
-    })
+    ###############################################
+    ## Tab 5 INTERACTIVE MANHATTAN PLOT           ##
+    ################################################
+    #
+    # --- CURRENTLY DISABLED BECAUSE PLOTLY SEEMS TO SHOW ONLY
+    # --- A SUBSET OF ALL POINTS AND CANNOT BE TRUSTED!
+    #
+    # # --- UPDATE CHROMOSOME CHOICES
+    # 
+    # observeEvent(assocData(), {
+    #     req(assocData())
+    #     
+    #     updateSelectInput(session, inputId = "chr", 
+    #                       choices = c(" " = "", unique(assocData()$CHR)))
+    # })
+    # 
+    # 
+    # # --- SAVE SELECTED CHROMOSOME VALUE
+    # # --- If no selection made, make = NULL
+    # 
+    # chr <- reactive({
+    #     req(input$chr)
+    #     
+    #     if (input$chr != ""){
+    #         chr <- input$chr
+    #     } else {
+    #         chr <- NULL
+    #     }
+    #     chr %>% return
+    # })
+    # 
+    # 
+    # # --- PRINT INTERACTIVE MANHATTAN PLOT
+    # 
+    # output$manPlot2 <- renderPlotly({
+    #     req(assocData())
+    #     req(sigValue())
+    #     req(input$chr != "")
+    #     
+    #     dat <- assocData()[which(assocData()$CHR == chr()), ]
+    #     
+    #     gg.manhattan(dat, sigValue()) %>% #call function from shinyGWAS_fns.R
+    #         ggplotly(tooltip = "text", )
+    # })
     
 } #END server
 

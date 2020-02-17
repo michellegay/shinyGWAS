@@ -147,9 +147,9 @@ library(GWASdata)
 ## extract scan df from gds file                      ##
 ########################################################
 
-extractScan <- function(gdsFile, id2 = NULL, covars = NULL){
+extractScan <- function(gds, id2 = NULL, covars = NULL){
   
-  gds <- GdsGenotypeReader(gdsFile)
+  # gds <- GdsGenotypeReader(gdsFile)
   
   scanID <- getScanID(gds) %>% as.factor
   
@@ -167,7 +167,7 @@ extractScan <- function(gdsFile, id2 = NULL, covars = NULL){
     phenotype <- rep(0, length(scanID))
   }
   
-  close(gds)
+  # close(gds)
   
   
   df <- data.frame(scanID = scanID,
@@ -378,7 +378,7 @@ gg.manhattan <- function(df, threshold){
                     -log10(df.tmp$P) %>% round(2), sep="")
   
   # Get y limits
-  ylims <- c(0, max(-log10(df.tmp$P))+1)
+  ylims <- c(0, max(-log10(df.tmp$P), na.rm = TRUE)+1)
   
   # Make the plot
   p <- ggplot(df.tmp, aes(x=BPcum, y=-log10(P), text = text)) +
