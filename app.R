@@ -14,6 +14,7 @@ library(plotly)
 library(qqman)
 library(dplyr)
 library(shinythemes)
+library(SeqArray)
 
 
 # --- Set size of allowed file uploads.
@@ -38,7 +39,6 @@ ui = fluidPage(
         
         
         
-        
         ################################################
         ## Tab 1 Uploading Phenotype & Covariate data ##
         ################################################
@@ -46,14 +46,15 @@ ui = fluidPage(
         tabPanel(title = "UPLOAD DATA", fluid = TRUE,
                  titlePanel("Upload Data"),
                  br(),
-                 # titlePanel("Upload Data"),
+                 
+                 # --- Places a spinning circle in the corner of the page to
+                 # --- show when the app is busy computing.
+                 add_busy_spinner(spin = "fading-circle"),
                  
                  fluidRow( 
-                     # column(4,
                      sidebarPanel(
-                            # tags$hr(),
                             
-                            # --- Side bar with two tabs for uploading data
+                         # --- Side bar with two tabs for uploading data
                             tabsetPanel(
                                 # --- Sidebar tab #1 where user uploads genome data
                                 tabPanel(title = "Step one", fluid = TRUE,
@@ -230,6 +231,12 @@ ui = fluidPage(
                                                      label = "ID",
                                                      choices = character(0),
                                                      selectize = FALSE),
+                                         
+                                         # --- Input: User checks to automatically re-format ID column
+                                         # --- to sampleID123_sampleID123 format.
+                                         checkboxInput(inputId = "formatId", 
+                                                       label = "Force ID to 'IDxxx_IDxxx' format", 
+                                                       value = FALSE),
 
                                          # --- User indicates which column is the phenotype of interest.
                                          # --- This field is compulsary if genome data is VCF format,
@@ -269,16 +276,10 @@ ui = fluidPage(
                                          
                                  ) #END tab
                             ), #END tabset
-                            
-                            # --- Places a spinning circle in the corner of the page to
-                            # --- show when the app is busy computing.
-                            add_busy_spinner(spin = "fading-circle")
-                            
                             ), #END column
                      
                      # --- Right-hand panel which displays summary figures and information
                      # --- about the uploaded genome and sample data.
-                     # column(8,
                      mainPanel(
                             
                             # --- The following code makes the pair-wise plot re-size to
@@ -338,6 +339,7 @@ ui = fluidPage(
                                                 tags$hr(),
                                                 
                                                 h5("1.  Upload sample data file:"),
+                                                
                                                 # --- If genome data is VCF format, show instructions for
                                                 # --- compulsary upload of additional sample information.
                                                 conditionalPanel(
@@ -428,14 +430,15 @@ ui = fluidPage(
         tabPanel("RUN TEST", fluid = TRUE,
                  titlePanel("Select Model and Run Test"),
                  br(),
-                 # titlePanel("Association Test Settings"),
+                 
+                 # --- Places a spinning circle in the corner of the page to
+                 # --- show when the app is busy computing.
+                 add_busy_spinner(spin = "fading-circle"),
                  
                  fluidRow(
                      # --- Sidebar where association test options
                      # --- are displayed.
-                     # column(4,
                      sidebarPanel(
-                            # tags$hr(),
                             
                             # --- User selects the data-type of the phenotype data.
                             # --- Currently only supports binary and quantitative data-types.
@@ -499,7 +502,6 @@ ui = fluidPage(
                             ), #END column
                      
                      # --- Right-hand panel where results of association test will be displayed.
-                     # column(8,
                      mainPanel(
                          tabsetPanel(
                              # --- tab #0 gives instructions for selecting model settings.
@@ -538,10 +540,6 @@ ui = fluidPage(
                                       h4("Significant SNPs"),
                                       br(),
                                       
-                                      # --- Places a spinning circle in the corner of the page to
-                                      # --- show when the app is busy computing.
-                                      add_busy_spinner(spin = "fading-circle"),
-                                      
                                       # --- Shows the significant SNPs of the association test
                                       # --- in an interactive table.
                                       DT::dataTableOutput(outputId = "gwasSigs")
@@ -560,14 +558,14 @@ ui = fluidPage(
                  titlePanel("Manhattan and QQ Plots"),
                  br(),
                  
+                 # --- Places a spinning circle in the corner of the page to
+                 # --- show when the app is busy computing.
+                 add_busy_spinner(spin = "fading-circle"),
+                 
                  fluidRow(
                      tags$hr(),
                      br(),br(),
                      column(7,
-                            
-                            # --- Places a spinning circle in the corner of the page to
-                            # --- show when the app is busy computing.
-                            add_busy_spinner(spin = "fading-circle"),
                             
                             # --- Shows a manhattan plot of the p-values in order of
                             # --- chromosome and SNP position.
@@ -722,20 +720,15 @@ server <- function(input, output, session) {
                                       out.fn = outFile)
                 
             } else { #if data IS imputed...
-                ##################################
-                ########      WORKING       ######
-                ##################################
                 validate(
-                    need(input$isDosage == "dosage", 
+                    need(input$isDosage == TRUE, 
                          message = "Imputed data must be represented as dosages.")
                 )
                 
+                temp <- tempfile()
                 path <- seqVCF2GDS(vcf.fn = inPath, 
-                                   out.fn = outFile, 
-                                   fmt.import="DS")
-                ##################################
-                ##################################
-                ##################################
+                                   out.fn = temp) %>% 
+                    seqGDS2SNP(out.gdsfn = outFile, dosage = TRUE)
             }
             
         } else if (input$fileType == "plink"){
@@ -915,17 +908,7 @@ server <- function(input, output, session) {
             updateSelectInput(session, inputId = "sex",
                               choices = c("N/A" = "", names(sData())),
                               selected = "")
-        
-        # if (input$fileType != "vcf"){
-        #     updateSelectInput(session, inputId = "sex", 
-        #                       choices = c("N/A" = "", names(sData())), 
-        #                       selected = "")
-        # } else { #if genome data is vcf format, this is compulsary
-        #     updateSelectInput(session, inputId = "sex", 
-        #                       choices = names(sData()))
-        # }
-        
-    })
+     })
     
     observeEvent(sData(), {
         updateSelectInput(session, inputId = "covars", 
@@ -1051,8 +1034,14 @@ server <- function(input, output, session) {
             }
         }
         
+        # --- Extract the sample IDs from genome data, the sample data must match these
         genomeIDs <- getScanID(gReader()) %>% as.factor() %>% as.data.frame()
         names(genomeIDs) <- "scanID"
+        
+        # --- Force ID column to match format of VCF files of UWA imputed data
+        if (input$formatId == 1){
+            df$scanID <- paste(df$scanID, "_", df$scanID, sep = "") %>% as.factor()
+        }
         
         # --- MIGHT RESULT IN REMOVAL OF SAMPLES HERE
         # --- SHOULD THINK OF WAY TO DOCUMENT REMOVED
@@ -1128,9 +1117,10 @@ server <- function(input, output, session) {
     
     
     # --- PRINT LIST OF UPLOADED FILES
+    # --- Save to a separate parameter so can be
+    # --- passed to summary report
     
-    output$filesUploaded <- DT::renderDataTable({
-        req(input$genoDo)
+    uploadedFiles <- eventReactive(input$genoDo, {
         req(input$fileType)
         
         if (input$fileType == "gds"){
@@ -1181,6 +1171,14 @@ server <- function(input, output, session) {
         df[,2] <- df[,2]/1000000 #display file size in MB, not bytes.
         df
     })
+    
+    output$filesUploaded <- DT::renderDataTable({
+        req(input$genoDo)
+        req(input$fileType)
+        
+        uploadedFiles()
+        
+        })
  
     
     ################################################
@@ -1227,13 +1225,21 @@ server <- function(input, output, session) {
                    session = session, 
                    restrictions = system.file(package = "base"))
     
-    output$directorypath <- renderPrint({
+    dirPath <- reactive({
+        req(input$saveDir)
+        
         if (is.integer(input$saveDir)) {
             cat("No directory selected.")
         } else {
             parseDirPath(roots = volumes, 
                          selection = input$saveDir)
         }
+    })
+    
+    output$directorypath <- renderPrint({
+        req(dirPath())
+        
+        dirPath()
     })
     
     
@@ -1307,6 +1313,11 @@ server <- function(input, output, session) {
         names(assoc)[names(assoc) == "snpID"] <- "SNP"
         names(assoc)[names(assoc) == "Wald.pval"] <- "P"
         
+        #make p-value column numeric (for some reason it
+        #becomes a factor during imputation analysis...)
+        #have to go to character first to avoid becoming integer sequence
+        assoc$P <- assoc$P %>% as.character() %>% as.numeric()
+        
         #create a file name for saving the results
         sig <- Sys.time() %>% format("%Y%m%d-%H%M%S")
         savePath <- parseDirPath(roots = volumes, selection = input$saveDir) %>% 
@@ -1343,14 +1354,19 @@ server <- function(input, output, session) {
     # --- PRINT SIGNIFICANT RESULTS OF ASSOCIATION TEST
     # --- as intereactive table
     
-    output$gwasSigs <- DT::renderDataTable({
+    sigSNPs <- eventReactive(input$assocDo, {
         req(assocData())
         req(sigValue())
         
         cols <- c("SNP", "CHR", "P")
         dat <- assocData()[which(assocData()$P <= sigValue()), cols]
         
-        datatable(dat, 
+    })
+    
+    output$gwasSigs <- DT::renderDataTable({
+        req(sigSNPs())
+        
+        datatable(sigSNPs(),
                   rownames = TRUE,
                   options = list(scrollX = TRUE))
     })
@@ -1373,13 +1389,6 @@ server <- function(input, output, session) {
 
     }, cacheKeyExpr = list(sigValue(), assocData()))
     
-    # output$manPlot <- renderPlot({
-    #     req(assocData())
-    #     req(sigValue())
-    #     
-    #     gg.manhattan(assocData(), sigValue()) #call function from shinyGWAS_fns.R
-    # })
-
     
     # --- PRINT STATIC QQ PLOT
     
