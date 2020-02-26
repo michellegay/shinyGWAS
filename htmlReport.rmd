@@ -1,0 +1,225 @@
+---
+title: "shinyGWAS Report"
+output: html_document
+params:
+ imputed: na
+ dosages: na
+ file.format: na
+ files: na
+ scan.annot: na
+ dat.type: na
+ model.type: na
+ correction: na
+ save.folder: na
+ sig.snps: na
+ sig.val: na
+ results: na
+ start.time: na
+ end.time: na
+ results.file: na
+ printcode: false
+geometry: margin=1in
+---
+
+```{r, setup, include = FALSE}
+knitr::opts_chunk$set(echo = params$printcode)
+
+library(magrittr)
+library(SNPRelate)
+library(GWASTools)
+library(qqman)
+library(summarytools)
+library(GGally)
+library(shinyFiles)
+library(DT)
+library(plotly)
+library(qqman)
+library(dplyr)
+library(knitr)
+```
+----
+```{r}
+paste("Report timestamp: ", Sys.time(), sep = "") %>% print()
+paste("Associated results: ", params$results.file, sep = "") %>% print()
+```
+
+### Input Data Summary:
+***
+```{r}
+if (params$imputed == 1){
+  impute <- "YES"
+} else {
+  impute <- "NO"
+}
+
+if (impute == "NO"){
+  dose <- "N/A"
+} else if (params$dosages == TRUE){
+  dose <- "Dosages"
+} else if (params$dosages == FALSE){
+  dose <- "Genotype probabilities"
+}
+
+format <- params$file.format %>% toupper()
+
+```
+
+#### Settings: 
+```{r}
+paste("Imputed data: ", impute, sep = "") %>% print()
+paste("Imputed data storage format: ", dose, sep = "") %>% print()
+paste("Genome data file format: ", format, sep = "") %>% print()
+```
+\  
+
+#### Uploaded Files:
+```{r}
+params$files
+```
+\  
+
+#### Descriptive Statistics:
+```{r}
+params$scan.annot %>% pData %>% 
+  dfSummary(display.labels = FALSE, headings = FALSE,
+            max.distinct.values = 5) %>% 
+  print(method = 'render')
+```
+\  
+
+#### Correlation:
+```{r}
+(params$scan.annot %>% pData)[, -1] %>% 
+  ggpairs(upper = list(continuous = "cor",
+                       combo = "facethist",
+                       discrete = "facetbar"),
+          lower = list(continuous = "points",
+                       combo = "facethist",
+                       discrete = "blank"))
+```
+\  
+\  
+
+### Association Test
+***
+```{r}
+if (params$dat.type == "bin"){
+  data <- "BINARY"
+} else if (params$dat.type == "quant"){
+  data <- "QUANTITATIVE"
+}
+
+if (params$model.type == "linear"){
+  model <- "Linear Regression"
+} else if (params$model.type == "logistic"){
+  model <- "Logistic Regression"
+}
+
+if (params$correction == "wgs"){
+  correct <- "GENOME-WIDE SIGNIFICANCE (5e-8)"
+} else if (params$correction == "bonf"){
+  correct <- "BONFERRONI AT ALPHA = 0.05 (i.e. 0.05/No. SNPs)"
+}
+
+dir <- params$save.folder
+pval <- (params$results)$P
+chr <- (params$results)$CHR
+start <- params$start.time
+end <- params$end.time
+
+
+param <- c("genoData", "outcome", "model.type",
+            "gene.actions", "covar",
+            "ivar", "scan.exclude", "CI",
+            "robust", "LRtest", "PPLtest",
+            "effectAllele", "snpStart",
+            "snpEnd", "block.size", "verbose")
+
+deets <- c(paste("Genome data and any additional phenotype",
+                 "and/or covariate data saved to a GDS file",
+                 "and read into a GenotypeData object (from",
+                 "package GWASTools)."),
+           paste("The phenotype data column name."),
+           paste("the type of model to be run. 'linear' uses lm,",
+                 "'logistic' uses glm with family=binomial()."),
+           paste("Set to default: 'additive' sets the marker",
+                 "variable for homozygous minor allele samples = 2,",
+                 "heterozygous samples = 1, and homozygous major allele samples = 0."),
+           paste("a vector of the names of the covariates to adjust for",
+                 "(all variables uploaded excluding ID and phenotype)."),
+           paste("Set to default: 'NULL', no variable included as",
+                 "an interaction with genotype."),
+           paste("Set to default: 'NULL', no scanIDs excluded from test."),
+           paste("Set to default: '0.95', confidence level for the confidence interval calculations."),
+           paste("Set to default: 'FALSE', uses model based standard errors."),
+           paste("Set to default: 'FALSE', does not perform Likelihood",
+                 "Ratio Tests in addition to Wald tests."),
+           paste("N/A for linear or logistic tests."),
+           paste("Set to default: 'minor', effects are returned in",
+                 "terms of the minor allele for the tested sample."),
+           paste("Set to default: 'NULL', analyses starts at the first SNP."),
+           paste("Set to default: 'NULL', analyses ends at the last SNP."),
+           paste("Set to default: '5000', number of SNPs to read in at once."),
+           paste("Set to 'FALSE', status updates are not printed."))
+
+
+algo <- data.frame("Parameter" = param,
+                   "Description" = deets)
+```
+
+#### Settings:
+```{r}
+paste("Phenotype data type: ", data, sep = "") %>% print()
+paste("Association model: ", model, sep = "") %>% print()
+paste("P-value correction for multiple comparisons: ", correct, sep = "") %>% print()
+paste("Path of saved results: ", dir, sep = "") %>% print()
+```
+\  
+
+#### Association Test Details:
+```{r}
+paste("Test start time: ", start, sep = "") %>% print()
+paste("Test end time: ", end, sep = "") %>% print()
+(end-start) %>% print()
+paste("Significance threshold (p-val): ", params$sig.val, sep = "") %>% print()
+paste("Association test function: GWASTools::assocRegression()")
+```
+\  
+
+```{r results='asis'}
+algo %>% kable(caption = "GWASTools::assocRegression() parameter settings:", 
+               align = "l")
+```
+\  
+
+#### Significant SNPs:
+```{r}
+params$sig.snps
+```
+\  
+
+#### QQ Plot:
+```{r}
+par(pty = "s")
+qq(pval)
+```
+\  
+
+#### Manhattan Plot:
+```{r, fig.width=15, fig.height=8}
+logs <- -log10(pval)
+
+manhattanPlot(p = pval,
+              chromosome = chr,
+              signif = params$sig.val,
+              ylim = range(c(0, max(logs, na.rm = TRUE)+1)))
+```
+
+
+
+
+
+
+
+
+
