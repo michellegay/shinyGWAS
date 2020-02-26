@@ -1,20 +1,34 @@
 
-library(shiny)
-library(shinybusy)
-library(magrittr)
-library(SNPRelate)
-library(GWASTools)
-library(GWASdata)
-library(qqman)
-library(summarytools)
-library(GGally)
-library(shinyFiles)
-library(DT)
-library(plotly)
-library(qqman)
-library(dplyr)
-library(shinythemes)
-library(SeqArray)
+# --- INSTALL PACKAGES
+
+regPkgs = c('shiny','shinybusy','magrittr',
+            'qqman', 'summarytools', 'GGally',
+            'shinyFiles', 'DT', 'dplyr',
+            'shinythemes')
+
+# --- bioconductor packages
+bioPkgs = c('SNPRelate', 'GWASTools', 'SeqArray')
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(version = "3.10")
+
+for(p in regPkgs){
+    if(!require(p, character.only = TRUE)){
+        install.packages(p)
+    } 
+    library(p, character.only = TRUE)
+}
+
+for(p in bioPkgs){
+    if(!require(p, character.only = TRUE)){
+        BiocManager::install("GWASTools")
+    } 
+    library(p, character.only = TRUE)
+}
+
+
+
 
 
 # --- Set size of allowed file uploads.
@@ -235,7 +249,7 @@ ui = fluidPage(
                                          # --- Input: User checks to automatically re-format ID column
                                          # --- to sampleID123_sampleID123 format.
                                          checkboxInput(inputId = "formatId", 
-                                                       label = "Force ID to 'IDxxx_IDxxx' format", 
+                                                       label = "Re-format ID", 
                                                        value = FALSE),
 
                                          # --- User indicates which column is the phenotype of interest.
@@ -348,9 +362,8 @@ ui = fluidPage(
                                                     p(paste("VCF files must be accompanied by",
                                                             "a text file in .txt or .csv format which contain",
                                                             "at minimum, the following fields:")),
-                                                    p("- A unique sample ID,"),
-                                                    p("- Phenotype data, and"),
-                                                    p("- Sex data, formatted as 'M/F'"),
+                                                    p("- A unique sample ID, and"),
+                                                    p("- Phenotype data"),
                                                     p(paste("NOTE: the sample ID must correspond to",
                                                             "the genotype data.")),
                                                     
@@ -370,14 +383,19 @@ ui = fluidPage(
                                                     
                                                 ), #END panel
                                                 
+                                                p("Indicate whether the file contains column headers."),
+                                                
                                                 br(),
                                                 h5("2.  Select variables:"),
                                                 p("-- IGNORE IF NO SAMPLE DATA SELECTED --"),
                                                 p(paste("From the 'ID' drop-down menu, select the column",
                                                         "that corresponds to the unique sample ID.")),
+                                                p(paste("Check the 'Reformat ID' box to re-format the ID column to be in",
+                                                        "'IDxyz_IDxyz' format.")),
                                                 p(paste("If the sample data contains phenotype or sex data",
                                                         "select the corresponding columns from the respective",
                                                         "drop-down menus.")),
+                                                p("NOTE: Sex data, if present, must be formatted as 'M' and 'F'"),
                                                 p(paste("If the data contain any additional covariates (e.g.",
                                                         "principle components), that you wish you include in the model",
                                                         ", select these from the 'Other covariates' menu.",
@@ -488,7 +506,7 @@ ui = fluidPage(
                             # --- Shows the folder path that has been selected.
                             verbatimTextOutput("directorypath"),
                             
-                            br(), br(),
+                            br(), 
                             
                             # --- User clicks this button to confirm settings and 
                             # --- begin the association test.
@@ -498,6 +516,9 @@ ui = fluidPage(
                             br(), br(),
                             textOutput("testComplete"),
                             br(),
+                            
+                            # --- User can download a summary report of the analyses
+                            downloadButton("report", "Download report")
                             
                             ), #END column
                      
@@ -525,12 +546,17 @@ ui = fluidPage(
                                       
                                       br(),
                                       h5("3.  Save results:"),
-                                      p(paste("Select a folder where results of association test and",
-                                              "summary report will be saved.")),
+                                      p(paste("Select a folder where results of association test will be saved.")),
                                       
                                       br(),
                                       h5("4.  Run test:"),
-                                      p("Click 'Run test' button to confirm settings and run association analyses.")
+                                      p("Click 'Run test' button to confirm settings and run association analyses."),
+                                      
+                                      br(),
+                                      h5("5.  Download report:"),
+                                      p(paste("Once test is complete you may choose to download a summary report of the",
+                                        "test by clicking 'Download report'. The report details test settings and",
+                                        "includes all summary tables and figures."))
                                       
                              ), #END tab
                              
@@ -584,7 +610,7 @@ ui = fluidPage(
         
         
         ################################################
-        ## Tab 4 Interactive Manhattan Plot           ##
+        ## Tab 4 GWAS RESULTS                         ##
         ################################################
         
         tabPanel("RESULTS", fluid = TRUE,
@@ -773,7 +799,7 @@ server <- function(input, output, session) {
     #         )
     #         
     #         inPath <- input$vcfImps$datapath
-    #         paths <- inputToGds(inPath,
+    #         paths <- imputeToGds(inPath,
     #                             input$fileType,
     #                             input$isDosage)
             # 
@@ -1245,9 +1271,11 @@ server <- function(input, output, session) {
     
     # --- RUN ASSOCIATION ANALYSIS AND SAVE RESULTS
     
-    assocData <- eventReactive(input$assocDo, { #run association when user clicks button
+    runTest <- eventReactive(input$assocDo, { #run association when user clicks button
         req(gData())
         req(input$saveDir)
+        
+        startTime <- Sys.time()
         
         covars <- (gData() %>% getScanVariableNames)[-c(1,2)]
         
@@ -1325,7 +1353,20 @@ server <- function(input, output, session) {
         
         #save results
         assoc %>% write.csv(savePath)
-        assoc %>% return
+        
+        endTime <- Sys.time()
+        
+        out <- list(results = assoc, start = startTime, end = endTime, path = savePath)
+        out %>% return
+    })
+    
+    
+    # --- SAVE ASSOCIATION DATA TO OWN VARIABLE
+    
+    assocData <- reactive({
+        req(runTest())
+        
+        runTest()$results %>% return()
     })
     
     
@@ -1335,6 +1376,47 @@ server <- function(input, output, session) {
         req(assocData())
         "Test complete."
     })
+    
+    # --- GENERATE SUMMARY REPORT
+    # --- Code from https://shiny.rstudio.com/articles/generating-reports.html
+    
+    output$report <- downloadHandler(
+        
+        filename = "report.html",
+        content = function(file) {
+            # 
+            # Copy the report file to a temporary directory before processing it, in
+            # case we don't have write permissions to the current working dir (which
+            # can happen when deployed).
+            tempReport <- file.path(tempdir(), "testhtml.Rmd")
+            file.copy("testhtml.Rmd", tempReport, overwrite = TRUE)
+            
+            # Set up parameters to pass to Rmd document
+            params <- list(imputed = input$isImpute,
+                           dosages = input$isDosage,
+                           file.format = input$fileType,
+                           files = uploadedFiles(),
+                           scan.annot = scanAnnot(),
+                           dat.type = input$phenoDatType,
+                           model.type = input$assocTest,
+                           correction = input$multiCompars,
+                           save.folder = dirPath(),
+                           sig.snps = sigSNPs(),
+                           sig.val = sigValue(),
+                           results = assocData(),
+                           start.time = runTest()$start,
+                           end.time = runTest()$end,
+                           results.file = runTest()$path)
+            
+            # Knit the document, passing in the `params` list, and eval it in a
+            # child of the global environment (this isolates the code in the document
+            # from the code in this app).
+            rmarkdown::render(tempReport, output_file = file,
+                              params = params,
+                              envir = new.env(parent = globalenv())
+            )
+        }
+    )
     
     
     # --- UPDATE SIGNIFICANCE VALUE
