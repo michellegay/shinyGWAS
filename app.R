@@ -1388,8 +1388,8 @@ server <- function(input, output, session) {
             # Copy the report file to a temporary directory before processing it, in
             # case we don't have write permissions to the current working dir (which
             # can happen when deployed).
-            tempReport <- file.path(tempdir(), "testhtml.Rmd")
-            file.copy("testhtml.Rmd", tempReport, overwrite = TRUE)
+            tempReport <- file.path(tempdir(), "htmlReport.Rmd")
+            file.copy("htmlReport.Rmd", tempReport, overwrite = TRUE)
             
             # Set up parameters to pass to Rmd document
             params <- list(imputed = input$isImpute,
