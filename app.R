@@ -4,7 +4,7 @@
 regPkgs = c('shiny','shinybusy','magrittr',
             'qqman', 'summarytools', 'GGally',
             'shinyFiles', 'DT', 'dplyr',
-            'shinythemes')
+            'shinythemes', 'tinytex')
 
 # --- bioconductor packages
 bioPkgs = c('SNPRelate', 'GWASTools', 'SeqArray')
@@ -27,8 +27,9 @@ for(p in bioPkgs){
     library(p, character.only = TRUE)
 }
 
-
-
+# if (tinytex:::is_tinytex() == FALSE){
+#     tinytex::install_tinytex()
+# }
 
 
 # --- Set size of allowed file uploads.
@@ -45,12 +46,57 @@ ui = fluidPage(
         ################################################
         
         tabPanel(title = "INFO", fluid = TRUE,
-                 titlePanel("User Reference"),
+                 # titlePanel("User Reference"),
+                 
+                 fluidRow(
+                     column(4,
+                            h2("shinyGWAS")), #END column
+                     
+                     column(6,
+                            ), #END column
+                 ), #END row
                  
                  
+                 br(),
                  
+                 fluidRow(
+                     sidebarPanel(
+                         
+                         h5("Author:"),
+                         p(paste("Michelle Gay")),
+                         
+                         br(),
+                         h5("Last update:"),
+                         p(paste("04-Mar-2020")),
+                         
+                         br(),
+                         h5("Details:"),
+                         p(paste("This application was developed as part of",
+                                 "a 2019/20 student summer internship project run by",
+                                 "Innovation Central Perth (ICP) in collaboration",
+                                 "with the Fiona Wood Foundation (FWF).")),
+                         
+                         br(),
+                         p(paste("Michelle would like to acknowledge and thank",
+                                 "project supervisor Phillip Melton (FWF),",
+                                 "internship coordinator Ash Roberts (ICP), and Fiona Wood (FWF),",
+                                 "Mark Fear (FWF) and Andrew Stephenson (FWF) for their support",
+                                 "and contribution to the project.")),
+                         
+                         br(),
+                         h5("Issues and bugs:"),
+                         p(paste("Please report issues to the GitHub repository",
+                                 "'michellegay/shinyGWAS'.")),
+                     ), #END panel
+                     
+                     mainPanel(
+                         br(),br(),br(),br(),
+                         HTML('<center><img src="fw-social_big.png"></center>'),
+                         br(),br(),br(),br(),
+                     )
+                     
+                 ), #END row
                  ), #END tab
-        
         
         
         ################################################
@@ -58,7 +104,16 @@ ui = fluidPage(
         ################################################
         
         tabPanel(title = "UPLOAD DATA", fluid = TRUE,
-                 titlePanel("Upload Data"),
+                 # titlePanel("Upload Data"),
+                 
+                 fluidRow(
+                     column(6,
+                            h2("Upload Data")), #END column
+                     
+                     column(6,
+                            img(src='fw-social_smol2.png', align = "right")), #END column
+                 ), #END row
+                 
                  br(),
                  
                  # --- Places a spinning circle in the corner of the page to
@@ -446,7 +501,16 @@ ui = fluidPage(
         ################################################
         
         tabPanel("RUN TEST", fluid = TRUE,
-                 titlePanel("Select Model and Run Test"),
+                 # titlePanel("Select Model and Run Test"),
+                 
+                 fluidRow(
+                     column(6,
+                            h2("Select Model and Run Test")), #END column
+                     
+                     column(6,
+                            img(src='fw-social_smol2.png', align = "right")), #END column
+                 ), #END row
+                 
                  br(),
                  
                  # --- Places a spinning circle in the corner of the page to
@@ -581,7 +645,16 @@ ui = fluidPage(
         ################################################
         
         tabPanel("FIGURES", fluid = TRUE,
-                 titlePanel("Manhattan and QQ Plots"),
+                 # titlePanel("Manhattan and QQ Plots"),
+                 
+                 fluidRow(
+                     column(6,
+                            h2("Manhattan and QQ Plots")), #END column
+                     
+                     column(6,
+                            img(src='fw-social_smol2.png', align = "right")), #END column
+                 ), #END row
+                 
                  br(),
                  
                  # --- Places a spinning circle in the corner of the page to
@@ -614,7 +687,16 @@ ui = fluidPage(
         ################################################
         
         tabPanel("RESULTS", fluid = TRUE,
-                 titlePanel("GWAS Results"),
+                 # titlePanel("GWAS Results"),
+                 
+                 fluidRow(
+                     column(6,
+                            h2("GWAS Results")), #END column
+                     
+                     column(6,
+                            img(src='fw-social_smol2.png', align = "right")), #END column
+                 ), #END row
+                 
                  br(),
                  
                  fluidRow(
@@ -646,8 +728,16 @@ ui = fluidPage(
         # --- CURRENTLY DISABLED BECAUSE PLOTLY SEEMS TO SHOW ONLY
         # --- A SUBSET OF ALL POINTS AND CANNOT BE TRUSTED!
         # 
-        # tabPanel("Interactive Manhattan", fluid = TRUE,
-        #          titlePanel("Interactive Manhattan Plot"),
+         # tabPanel("Interactive Manhattan", fluid = TRUE,
+         #          # titlePanel("Interactive Manhattan Plot"),
+         #          
+         #          fluidRow(
+         #              column(6,
+         #                     h2("Interactive Manhattan Plot")), #END column
+         #              
+         #              column(6,
+         #                     img(src='fw-social_smol2.png', align = "right")), #END column
+         #          ), #END row
         #          
         #          fluidRow(
         #              column(4,
@@ -1382,14 +1472,25 @@ server <- function(input, output, session) {
     
     output$report <- downloadHandler(
         
+        # --- FOR HTML DOCUMENTS
         filename = "report.html",
         content = function(file) {
-            # 
+            #
             # Copy the report file to a temporary directory before processing it, in
             # case we don't have write permissions to the current working dir (which
             # can happen when deployed).
             tempReport <- file.path(tempdir(), "htmlReport.Rmd")
             file.copy("htmlReport.Rmd", tempReport, overwrite = TRUE)
+        
+        # --- FOR PDF DOCUMENTS
+        # filename = "report.pdf",
+        # content = function(file) {
+        #     #
+        #     # Copy the report file to a temporary directory before processing it, in
+        #     # case we don't have write permissions to the current working dir (which
+        #     # can happen when deployed).
+        #     tempReport <- file.path(tempdir(), "pdfReport.Rmd")
+        #     file.copy("pdfReport.Rmd", tempReport, overwrite = TRUE)
             
             # Set up parameters to pass to Rmd document
             params <- list(imputed = input$isImpute,
