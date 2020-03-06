@@ -31,12 +31,51 @@ shinyGWAS can be run locally from the R console with the following command:
 shiny::runGitHub("shinyGWAS", "michellegay")
 ```
 
-
-## 1. Upload Genotype Data
+## NOTE:
 
 shinyGWAS assumes that all data quality checks and pre-processing stages have been completed and the data is ready for association testing.
 
-Genome data may be uploaded in one of the following formats:
-* GDS files
+## Step One: Upload Genotype Data
+
+Once the application has been loaded as per the instructions above, navigate to the "UPLOAD DATA" tab.
+
+On the left of the screen is a side panel with two tabs, "Step one" and "Step two". Select "Step one" if it is not already.
+
+The first checkbox asks the user to indicate whether the genome data to be analysed has been imputed. If so, check the box and skip to the instructions for imputed data at the end of this section, otherwise continue to follow the instructions below.
+
+Non-imputed genome data may be uploaded in one of the following formats:
+
+* GDS files,
 * VCF files, or
-* PLINK files in .BED, .BIM & .FAM format
+* PLINK files in .BED, .BIM & .FAM format.
+
+Select the appropriate file format from the options available.
+
+If you are uploading data in PLINK format, it is important that you upload the .BED, .BIM and .FAM files in the correct upload fields as directed.
+
+Next, click the "Browse..." button to select the genome data file. You will see a loading bar that indicates when the file has successfully uploaded.
+
+
+### Imputed Data
+
+After checking the "Imputed data" field, another selection field will appear asking the user to indicate whether the imputed data are represented as dosages or as genotype probabilities. Select the appropriate option.
+
+Imputed genome data may be uploaded in one of the following formats:
+
+* VCF files, 
+* PLINK files in .BED, .BIM & .FAM format,
+* IMPUTE2 files in .GENS & .SAMPLES format,
+* BEAGLE files in .GROBS/.DOSE & .MARKERS format, or
+* MaCH files in .MLPROB/.MLDOSE, .MLINFO & .TXT/.CSV format
+
+Select the appropriate file format from the options available.
+
+If you are uploading data in PLINK, IMPUTE2, BEAGLE or MaCH format, it is important that you upload the different file types in the correct upload fields as directed.
+
+Imputed data may be stored accross multiple files, e.g. broken up by chromosome number. If this is the case, multiple files can be selected within each upload field by holding down `Ctrl` and selecting relevant files. 
+
+NOTE: Only imputed VCF files have been tested at this stage.
+
+
+## Step Two: Upload Sample Data
+
