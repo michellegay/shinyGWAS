@@ -1,0 +1,42 @@
+---
+title: "shinyGWAS"
+output: rmarkdown::html_vignette
+vignette: >
+ %\VignetteIndexEntry{shinyGWAS}
+ %\VignetteEngine{knitr::rmarkdown}
+ \usepackage[utf8]{inputenc}
+---
+
+```{r echo = FALSE, message = FALSE}
+knitr::opts_chunk$set(collapse = T, comment = "#>")
+```
+
+This vignette acts as a step-by-step guide for using the shinyGWAS application. 
+
+
+## Overview
+
+shinyGWAS is an application that aims to simplify the process of performing the association testing phase of genome-wide association studies (GWAS), with an intuitive graphic user interface. 
+
+The process is broken up into three steps the user must complete, (1) uploading genome data, (2) uploading phenotype data (if required) and (3) selecting the assocation model settings. This vignette will be structured in order of these steps.
+
+At this time association testing can be done by linear or logistic regression, performed by the function `assocRegression()` from the package GWASTools. This application relies largely on three Biocondunctor packages for data management and statistical analyses: GWASTools, SNPRelate and SeqArray. Detailed documentation of these packages are available from Bioconductor.
+
+
+## Run Application
+
+shinyGWAS can be run locally from the R console with the following command:
+
+```{r}
+shiny::runGitHub("shinyGWAS", "michellegay")
+```
+
+
+## 1. Upload Genotype Data
+
+shinyGWAS assumes that all data quality checks and pre-processing stages have been completed and the data is ready for association testing.
+
+Genome data may be uploaded in one of the following formats:
+* GDS files
+* VCF files, or
+* PLINK files in .BED, .BIM & .FAM format
