@@ -8,6 +8,8 @@ shinyGWAS can be run locally from the R console with the following command:
 shiny::runGitHub("shinyGWAS", "michellegay")
 ```
 
+More detailed instruction for using this application is available in the accompanying vignette and within the application itself.
+
 ## Contact
 
 You may contact the author of this code, Michelle Gay at <michelle.louise92@gmail.com>
