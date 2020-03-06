@@ -1,0 +1,5 @@
+Title: shinyGWAS
+Author: Michelle Gay
+Type: Shiny
+Suggests: knitr, rmarkdown
+VignetteBuilder: knitr
